@@ -14,11 +14,6 @@
     restore regs
     resume execution
 */
-
-/*
-rm dumpdecrypted; wget http://192.168.1.16:8000/dumpdecrypted; chmod +x dumpdecrypted ; jtool --sign platform --ent entitlements.xml --inplace dumpdecrypted;dumpdecrypted
-*/
-
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>

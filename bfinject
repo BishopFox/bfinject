@@ -1,0 +1,106 @@
+#!/jb/bin/bash
+
+#
+# check args
+#
+if [ "$1" == "" -o "$2" == "" ]; then
+    echo "Syntax: $0 <pid> </path/to/yourdylib>"
+    echo
+    echo To avoid sandbox issues, put your dylib into a folder with this naming convention:
+    echo   /System/Library/Frameworks/YOURDYLIB.framework/YOURDYLIB.dylib
+    echo
+    exit 1
+fi
+
+DYLIB=$2
+PID=$1
+
+#
+# We don't need all of these entitlements, but our power is over 9000.
+#
+cat > /jb/usr/bin/entitlenents.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>platform-application</key>
+        <true/>
+        <key>com.apple.backboardd.debugapplications</key>
+        <true/>
+        <key>com.apple.backboardd.launchapplications</key>
+        <true/>
+        <key>com.apple.diagnosticd.diagnostic</key>
+        <true/>
+        <key>com.apple.frontboard.debugapplications</key>
+        <true/>
+        <key>com.apple.frontboard.launchapplications</key>
+        <true/>
+        <key>com.apple.springboard.debugapplications</key>
+        <true/>
+        <key>com.apple.springboard.launchapplications</key>
+        <true/>
+        <key>com.apple.security.network.client</key>
+        <true/>
+        <key>com.apple.security.network.server</key>
+        <true/>
+        <key>run-unsigned-code</key>
+        <true/>
+        <key>get-task-allow</key>
+        <true/>
+        <key>task_for_pid-allow</key>
+        <true/>
+        <key>com.apple.system-task-ports</key>
+        <true/>
+    </dict>
+</plist>
+EOF
+
+#
+# Find the full path to the target app binary
+#
+BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2 -d\ `
+echo "[+] Injecting into '$BINARY'"
+
+#
+# Get the Team ID that signed the target app's binary.
+# We need this so we can re-sign the injected .dylib to fool the kernel
+# into assuming the .dylib is part of the injectee bundle. 
+# This allows is to map the .dylib into the target's process space via dlopen().
+#
+echo "[+] Getting Team ID from target application..."
+TEAMID=`jtool --sig --ent "$BINARY" 2>&1 | grep 'Team ID' |cut -b 16- -n|cut -f1 -d\  |head -n1`
+if [ "$TEAMID" == "" ]; then
+	echo Error, no Team ID. Wat.
+	exit 1
+fi
+
+#
+# Sign the appropriate entitlements and Team ID into our dylib
+#
+echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
+jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB > /dev/null 2>&1
+if [ "$?" != "0" ]; then
+	echo jtool dylib signing error. barfing.
+	exit 1
+fi
+
+#
+# Sign the injector binary with the entitlements
+#
+jtool --sign platform --ent entitlements.xml --inplace bfinject4realz >/dev/null 2>&1
+if [ "$?" != "0" ]; then
+    echo jtool bfinject4realz signing error. barfing.
+    exit 1
+fi
+
+#
+# Inject!
+#
+echo "[+] Injecting dumpdecrypted.dylib into target application, PID $PID"
+/jb/usr/bin/bfinject4realz $PID $DYLIB
+
+#
+# EOF
+#
+echo "[+] So long and thanks for all the fish."
+exit 0

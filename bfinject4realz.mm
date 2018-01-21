@@ -5,13 +5,12 @@
     allocate some space for a new "stack"
     place string "/path/to/lib" at known location in stack
     pthread set 
-      x8 = <addr of dlopen>
       sp = new data segment "stack"
       x0 = <addr of string "/path/to/dylib" in new segment>
-      x1 = RTLD_DEFAULT | RTLD_GLOBAL
-      lr = ROP gadget to infinite loop at known addresses
-      pc = ROP gadget to do br x8
-    pthread poll for $pc == known ROP gadget loop (br x8!!)
+      x1 = RTLD_LAZY | RTLD_GLOBAL
+      lr = ROP gadget to infinite loop at known address
+      pc = address of our target function, dlopen()
+    pthread poll for $pc == known ROP gadget loop (RET)
     restore regs
     resume execution
 */

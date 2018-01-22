@@ -7,7 +7,9 @@ Dylib injection for 64-bit iOS 11.x.y jailbroken (LiberiOS 11.0.1 tested) device
 ```
 ssh root@your-device-ip # (the password is 'alpine')
 export PATH=$PATH:/jb/usr/bin:/jb/bin:/jb/sbin:/jb/usr/sbin:/jb/usr/local/bin:
-cd /jb/usr/bin/
+cd /jb
+mkdir bfinject
+cd bfinject
 wget http://<your_server>/bfinject.tar
 wget http://<your_server>/evil.dylib
 tar xvf bfinject.tar
@@ -18,7 +20,9 @@ tar xvf bfinject.tar
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
 * Magic happens:
 ```
--bash-3.2# bash bfinject 802 bfdecrypt.dylib
+-bash-3.2# pwd
+/var/bfinject
+-bash-3.2# bash bfinject 802 ./bfdecrypt.dylib
 [+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/redacted.app/redacted'
 [+] Getting Team ID from target application...
 [+] Signing injectable .dylib with Team ID REDACTED and platform entitlements...

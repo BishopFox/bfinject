@@ -304,5 +304,9 @@ int main(int argc, char ** argv)
   snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
   retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)((uint64_t )RTLD_LAZY), 0, 0);
 
-  return 0;
+  // Clean up the mess
+  thread_terminate(thread);
+  vm_deallocate(task, remoteStack, STACK_SIZE);
+
+  exit(0);
 }

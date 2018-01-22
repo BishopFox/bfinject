@@ -48,7 +48,7 @@ DEVELOPERID=$(shell security find-identity -v -p codesigning | grep "iPhone Deve
 all: $(BINARY_NAME) $(DYLIBS) finish
 
 $(DYLIBS): DumpDecrypted.o bfdecrypt.o
-	$(CXX) $(CXXFLAGS) bfdecrypt.o -shared -o bfdecrypt.dylib -dynamic DumpDecrypted.mm $(addsuffix .o,$(basename $(MINIZIP_SRC))) \
+	$(CXX) $(CXXFLAGS) cycript.dylib bfdecrypt.o -shared -o bfdecrypt.dylib -dynamic DumpDecrypted.mm $(addsuffix .o,$(basename $(MINIZIP_SRC))) \
 	$(addsuffix .o,$(basename $(SSZIPARCHIVE_SRC))) \
 	$(addsuffix .o,$(basename $(LORGNETTE_SRC))) $(LIBS) $(FRAMEWORKS) -ObjC
 	
@@ -56,7 +56,7 @@ $(BINARY_NAME): $(OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 finish:
-	tar cf bfinject.tar bfdecrypt.dylib bfinject bfinject4realz libsubstrate64.dylib cycript.dylib
+	tar cf bfinject.tar bfdecrypt.dylib bfinject bfinject4realz libsubstrate64.dylib cycript.dylib simple.dylib
 
 %.o: %.mm $(DEPS)
 	$(CXX) -c $(CXXFLAGS) $< -o $@

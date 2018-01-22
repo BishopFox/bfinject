@@ -15,6 +15,7 @@ fi
 DYLIB=$2
 PID=$1
 RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
+RANDOM_NAME=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
 DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
 DYLIB_PATH="$DYLIB_DIR/${RAND}.dylib"
 
@@ -25,8 +26,12 @@ fi
 
 function clean_exit() {
     rm -rf $DYLIB_DIR >/dev/null 2>&1
+    rm -f $RANDOM_NAME
     exit $1
 }
+
+cp bfinject4realz $RANDOM_NAME
+chmod +x $RANDOM_NAME
 
 #
 # We don't need all of these entitlements, but our power is over 9000.
@@ -107,9 +112,9 @@ fi
 #
 # Sign the injector binary with the entitlements
 #
-jtool --sign platform --ent entitlements.xml --inplace bfinject4realz >/dev/null 2>&1
+jtool --sign platform --ent entitlements.xml --inplace $RANDOM_NAME >/dev/null 2>&1
 if [ "$?" != "0" ]; then
-    echo jtool bfinject4realz signing error. barfing.
+    echo jtool $RANDOM_NAME signing error. barfing.
     clean_exit 1
 fi
 
@@ -117,7 +122,7 @@ fi
 # Inject!
 #
 echo "[+] Injecting $DYLIB into target application, PID $PID"
-./bfinject4realz $PID $DYLIB_PATH
+${RANDOM_NAME} $PID $DYLIB_PATH
 
 #
 # EOF

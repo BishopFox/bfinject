@@ -32,6 +32,7 @@
 const char *fullPathStr;
 
 __attribute__((constructor)) void rocknroll() {
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         fullPathStr = _dyld_get_image_name(0);
 
@@ -41,7 +42,6 @@ __attribute__((constructor)) void rocknroll() {
         NSLog(@"[bfdecrypt]");
         NSLog(@"[bfdecrypt]");
         NSLog(@"[bfdecrypt]");
-        
         NSLog(@"[bfdecrypt] Full path to app: %s", fullPathStr);
         DumpDecrypted *dd = [[DumpDecrypted alloc] initWithPathToBinary:[NSString stringWithUTF8String:fullPathStr]];
         [dd createIPAFile];

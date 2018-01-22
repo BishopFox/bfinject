@@ -56,7 +56,7 @@ $(BINARY_NAME): $(OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 finish:
-	tar cf bfinject.tar bfdecrypt.dylib bfinject bfinject4realz README.txt
+	tar cf bfinject.tar bfdecrypt.dylib bfinject bfinject4realz
 
 %.o: %.mm $(DEPS)
 	$(CXX) -c $(CXXFLAGS) $< -o $@

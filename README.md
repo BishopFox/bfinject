@@ -72,7 +72,7 @@ First, some history. Ian Beer dropped his "async_wait" exploit that gets task_fo
 
 Jonathan Levin took async_wait and built a proof-of-concept jailbreak called LiberiOS, which gives us a working root SSH shell on iPhones (actually any modern iPhone/iPad). LiberiOS makes it possible to run self-signed binaries and load self-signed shared libraries, so long as we do some careful code signing. LiberiOS does this by patching the Apple Mobile File Integry daemon, "amfid", which does the duty of verifying the codesigning integrity of executable code loaded from files (mach-o binaries, shared libraries, frameworks, etc). 
 
-But that's only userland. There are also codesigning checks in the kernel itself, and those aren't patched because of KPP: kernel patch protection. It's sophisticated introspection built into the kernel to detect and defeat modifications to itself. It's really hard to break, which is why currently only the userland half of codesigning is broken on iOS11. Which gives us some restrictions on what we can do with a jailbreak.
+But that's only userland. There are also codesigning checks in the kernel itself (ok, kexts), and those aren't patched because of KPP: kernel patch protection. It's sophisticated introspection built into the kernel to detect and defeat modifications to itself; I believe on modern phones there's some hardware support, too, but much Googling required for that. It's really hard to break, which is why currently only the userland half of codesigning is broken on iOS11. Which gives us some restrictions on what we can do with a jailbreak. 
 
 For example, there's an idiosyncrasy that makes it impossible to directly run shell scripts. Instead of `./script.sh` you have to run `bash ./script.sh`. Wut. 
 
@@ -83,14 +83,14 @@ This one issue breaks Cydia, MobileSubstrate, iSpy, Frida, Cycript, Fishhook and
 Not all was lost though, because Levin hinted at another means of shared library injection: 
 `Arbitrary Dylib loading works. NO, CYDIA SUBSTRATE WON'T. Not my problem - @Saurik owns this one`
 
-Yeah well, nobody owned it. So I decided to kill two birds with one stone: brush up my ROP on arm64 and build an injection framework to bring back our favorite toys. And here we are.
+Yeah well, despite some work on Electra and random forks of Ian Beer's exploit, nobody has come up with a nice, simple way of injecting arbitrary dylibs into App Store apps. So I decided to kill two birds with one stone: brush up my ROP on arm64 and build an injection framework to bring back our favorite toys. And here we are.
 
 ## Ok, really. How does it work?
 It side-loads a self-signed .dylib into a running Apple-signed App Store app.
 
 ### Three main challenges
-* Attach to another process and manipulate it. Easy: tfp0 gives us task_for_pid() for any App Store process.
-* Execute code in the attached process. Hard. Non-exec stack, heap, everything; kernel virtual memory protection against setting VM_PROT_EXECUTE on a page if it's ever been VM_PROT_WRITE. We're left with thread manipulation and ROP tricks, but that's enough.
+* Attach to another process and manipulate it. Easy: we get this for free with LiberiOS.
+* Execute arbitrary code in the attached process. Hard. Non-exec stack, heap, everything; kernel virtual memory protection against setting VM_PROT_EXECUTE on a page if it's ever been VM_PROT_WRITE, yadda yadda. We're left with thread manipulation and ROP tricks, but that's enough to do the job.
 * Load a self-signed library into an Apple-signed process. Turns out quite easy with a small trick.
 
 ### Attach to another process
@@ -153,9 +153,47 @@ $x28 = 0x105429220
 ```
 
 Not content with querying the registers of any given thead, it's possible to set the registers and resume the thread, which 
-means execution can be redirected to any code in memory, such as app code, app-bundled frameworks, or Apple frameworks. At this point we're essentially crafting a ROP exploit: allocate memory pages in the remote process, setup a fake stack frame, then redirect execution to a suitable gadget or library call.
+means execution can be redirected to any code in memory, such as app code, app-bundled frameworks, or Apple frameworks. At this point we're essentially crafting a ROP exploit: allocate memory pages in the remote process, setup a fake stack frame, then redirect execution to a suitable gadget or library call. The code is simple, for example this will cause a thread to throw an access violation due to setting the PC register to 0xdeadbeef:
 
-TO BE CONTINUED!
+```
+thread_suspend(thread);
+thread_abort_safely(thread);
+state.__pc = 0xdeadbeef; // this will cause SIGSEGV trying to run code at address 0xdeadbeef
+thread_set_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, ARM_THREAD_STATE64_COUNT);
+```
+
+### Execute arbitrary code in the target process
+This is fairly straight-forward once you exclude all the ways it _can't_ be done. For example:
+* vm_allocate() a new page in the target, then vm_protect(VM_PROT_WRITE) it, then write shellcode, then vm_protect(VM_PROT_READ|VM_PROT_EXECUTE), then execute the code. Doesn't work because mmap won't honor requests for executable pages if the page was _ever_ marked writeable.
+* Rewriting data structures to affect code flow. This is too hard because such attacks would be highly application-specific. Nope.
+* Modifying application binaries on the filesystem. Nope, codesigning checks will break this.
+* Attaching a debugger and doing... stuff... might work, didn't try.
+
+Instead I went for this approach:
+
+* Suspend all the threads in the target process
+* Pick a thread to hijack. I used thread zero, the main UI thread
+* Save the state of all the CPU registers for the thread
+* Allocate some memory pages in the remote process for a new temporary stack
+* Place the string "/path/to/my.dylib" at known location in stack
+* Use some tricks to lookup the address of dlopen() in the remote process
+* Find a simple RET ROP gadget in an executable page (RET = "\xc0\x03\x5f\xd6" on arm64)
+* Set CPU registers for the thread: 
+  * $pc = Address of dlopen()  
+  * $x0 = Parameter 1 of dlopen: address of string "/path/to/dylib" in temporary stack  
+  * $x1 = Parameter 2 of dlopen: the value RTLD_LAZY | RTLD_GLOBAL  
+  * $sp = Middle of the temporary stack  
+  * $fp = Quarter way into the temporary stack  
+  * $lr = Address of ROP gadget  
+* Resume the thread. The following will happen:
+  * dlopen() will run and our library will be injected  
+  * dlopen() will RET to the value in the $lr register, which is another RET instruction  
+  * RET will return to RET will return to RET... ad infinitum  
+* Poll the thread's registers every .5 seconds and check for $pc == address of ROP gadget (the RET instruction)
+* Pause the thread
+* Restore the CPU registers
+* Resume all of the threads
+* Job done
 
 ## Known issues
 * Code is janky.

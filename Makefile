@@ -1,6 +1,6 @@
 DYLIBS=bfdecrypt.dylib
 BINARY_NAME=bfinject4realz
-BFINJECT_SRC=bfinject4realz.mm DumpDecrypted.mm
+BFINJECT_SRC=bfinject4realz.mm DumpDecrypted.mm 
 MINIZIP_SRC=SSZipArchive/minizip/ioapi.c SSZipArchive/minizip/mztools.c SSZipArchive/minizip/unzip.c SSZipArchive/minizip/zip.c
 SSZIPARCHIVE_SRC=SSZipArchive/SSZipArchive.m
 LORGNETTE_SRC=lorgnette.m
@@ -51,7 +51,7 @@ finish:
 webroot.o: webroot.c
 
 clean:
-	rm -f $(OBJS) 2>&1 > /dev/null
+	rm -f bfdecrypt.o $(OBJS) 2>&1 > /dev/null
 	rm -f $(BINARY_NAME) 2>&1 > /dev/null
 	rm -f $(DYLIBS) 2>&1 > /dev/null
 	

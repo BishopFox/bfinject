@@ -65,6 +65,13 @@ And we're done. x0 = 0x1c41fd500
 * Check the console log for the device, it will tell you where the decrypted IPA is stored:
 `[dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa`
 
+## Credits
+* Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)
+* Dmitry Rodionov for lorgnette (https://github.com/rodionovd/liblorgnette/)
+* Jonathan Levin for the  LiberiOS jailbreak (http://newosxbook.com/liberios/)
+* Ian Beer for the async_wake exploit (https://bugs.chromium.org/p/project-zero/issues/detail?id=1417)
+* Apple for a great mobile OS
+
 ## How does it work?
 In stages. Seriously. The iOS ecosystem is batshit crazy with a bajillion technical controls to mitigate exploits. 
 

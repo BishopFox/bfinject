@@ -14,11 +14,24 @@ fi
 
 DYLIB=$2
 PID=$1
+RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
+DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
+DYLIB_PATH="$DYLIB_DIR/${RAND}.dylib"
+
+if [ ! -f $DYLIB ]; then
+    echo $DYLIB doesn\'t exist
+    exit 1
+fi
+
+function clean_exit() {
+    rm -rf $DYLIB_DIR >/dev/null 2>&1
+    exit $1
+}
 
 #
 # We don't need all of these entitlements, but our power is over 9000.
 #
-cat > /jb/usr/bin/entitlenents.xml << EOF
+cat > /jb/usr/bin/entitlements.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -64,24 +77,31 @@ echo "[+] Injecting into '$BINARY'"
 #
 # Get the Team ID that signed the target app's binary.
 # We need this so we can re-sign the injected .dylib to fool the kernel
-# into assuming the .dylib is part of the injectee bundle. 
+# into assuming the .dylib is part of the injectee bundle.
 # This allows is to map the .dylib into the target's process space via dlopen().
 #
 echo "[+] Getting Team ID from target application..."
 TEAMID=`jtool --sig --ent "$BINARY" 2>&1 | grep 'Team ID' |cut -b 16- -n|cut -f1 -d\  |head -n1`
 if [ "$TEAMID" == "" ]; then
 	echo Error, no Team ID. Wat.
-	exit 1
+	clean_exit 1
 fi
+
+#
+# Move the injectee dylib to a sandbox-friendly location
+#
+mkdir $DYLIB_DIR
+cp $DYLIB $DYLIB_PATH
 
 #
 # Sign the appropriate entitlements and Team ID into our dylib
 #
 echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
-jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB > /dev/null 2>&1
+jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB_PATH > /dev/null 2>&1
 if [ "$?" != "0" ]; then
 	echo jtool dylib signing error. barfing.
-	exit 1
+	ls -l $DYLIB_DIR
+	clean_exit 1
 fi
 
 #
@@ -90,17 +110,17 @@ fi
 jtool --sign platform --ent entitlements.xml --inplace bfinject4realz >/dev/null 2>&1
 if [ "$?" != "0" ]; then
     echo jtool bfinject4realz signing error. barfing.
-    exit 1
+    clean_exit 1
 fi
 
 #
 # Inject!
 #
-echo "[+] Injecting dumpdecrypted.dylib into target application, PID $PID"
-/jb/usr/bin/bfinject4realz $PID $DYLIB
+echo "[+] Injecting $DYLIB into target application, PID $PID"
+/jb/usr/bin/bfinject4realz $PID $DYLIB_PATH
 
 #
 # EOF
 #
 echo "[+] So long and thanks for all the fish."
-exit 0
+clean_exit 0

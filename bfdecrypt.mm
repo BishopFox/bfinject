@@ -1,3 +1,9 @@
+/*
+    BF Decryptor - Decrypt iOS apps and repack them into an .ipa
+    https://github.com/BishopFox/bfinject
+
+    Carl Livitt @ Bishop Fox
+*/
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -26,24 +32,25 @@
 const char *fullPathStr;
 
 __attribute__((constructor)) void rocknroll() {
-    fullPathStr = _dyld_get_image_name(0);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        fullPathStr = _dyld_get_image_name(0);
 
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    
-    NSLog(@"[bfdecrypt] Full path to app: %s", fullPathStr);
-    DumpDecrypted *dd = [[DumpDecrypted alloc] initWithPathToBinary:[NSString stringWithUTF8String:fullPathStr]];
-    [dd createIPAFile];
-    [dd release];
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        
+        NSLog(@"[bfdecrypt] Full path to app: %s", fullPathStr);
+        DumpDecrypted *dd = [[DumpDecrypted alloc] initWithPathToBinary:[NSString stringWithUTF8String:fullPathStr]];
+        [dd createIPAFile];
 
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt]");
-    NSLog(@"[bfdecrypt] Over and out.");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt]");
+        NSLog(@"[bfdecrypt] Over and out.");
+    });
 }

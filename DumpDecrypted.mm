@@ -1,13 +1,16 @@
 /*
-Dumps decrypted iPhone Applications to a file - better solution than those GDB scripts for non working GDB versions
-(C) Copyright 2011-2014 Stefan Esser
-https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c
+    bfinject - Inject shared libraries into running App Store apps on iOS 11.x < 11.2
+    https://github.com/BishopFox/bfinject
+    
+    Carl Livitt @ Bishop Fox
 
-BF updates:
-- Dump ALL encrypted images in the target application: the app itself, its frameworks, plugins, etc. 
-- Create a valid .ipa containing the decrypted binaries. Save it in ~/Documents/decrypted-app.ipa
-- The .ipa can be modified and re-signed with a developer cert for redeployment to non-jailbroken devices
-- Auto detection of all the necessary sandbox paths
+	Based on code originally by 10n1c: https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c
+	Now with the following enhancements:
+	- Dump ALL encrypted images in the target application: the app itself, its frameworks, etc.
+	- Create a valid .ipa containing the decrypted binaries. Save it in ~/Documents/decrypted-app.ipa
+	- The .ipa can be modified and re-signed with a developer cert for redeployment to non-jailbroken devices
+	- Auto detection of all the necessary sandbox paths
+	- Converted into an Objective-C class for ease of use.
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +52,7 @@ BF updates:
 
 	return self;
 }
+
 
 -(void) makeDirectories:(const char *)encryptedImageFilenameStr {
 	char *appPath = (char *)[[self appPath] UTF8String];
@@ -92,6 +96,7 @@ BF updates:
 
 	return;
 }
+
  
 -(BOOL) dumpDecryptedImage:(const struct mach_header *)image_mh fileName:(const char *)encryptedImageFilenameStr image:(int)imageNum {
 	struct load_command *lc;
@@ -269,6 +274,7 @@ BF updates:
 	return false;
 }
 
+
 -(void) dumpDecrypted {
 	uint32_t numberOfImages = _dyld_image_count();
 	struct mach_header *image_mh;
@@ -293,9 +299,11 @@ BF updates:
 	}
 }
 
+
 -(BOOL) fileManager:(NSFileManager *)f shouldProceedAfterError:(BOOL)proceed copyingItemAtPath:(NSString *)path toPath:(NSString *)dest {
 	return true;
 } 
+
 
 -(void) createIPAFile {
 	NSString *IPAFile = [NSString stringWithFormat:@"%@/decrypted-app.ipa", [self docPath]];
@@ -311,16 +319,38 @@ BF updates:
 
 	[fm setDelegate:(id<NSFileManagerDelegate>)self];
 
-	NSLog(@"[dumpDecrypted] ======== START FILE COPY - IGNORE ANY WARNINGS ========");
+	NSLog(@"[dumpDecrypted] ======== START FILE COPY - IGNORE ANY SANDBOX WARNINGS ========");
+	NSLog(@"[dumpDecrypted] IPAFile: %@", IPAFile);
+	NSLog(@"[dumpDecrypted] appDir: %@", appDir);
+	NSLog(@"[dumpDecrypted] appCopyDir: %@", appCopyDir);
+	NSLog(@"[dumpDecrypted] zipDir: %@", zipDir);
+	
 	[fm copyItemAtPath:appDir toPath:appCopyDir error:&err];
 	NSLog(@"[dumpDecrypted] ======== END OF FILE COPY ========");
 
 	// Replace encrypted binaries with decrypted versions
+	NSLog(@"[dumpDecrypted] ======== START DECRYPTION PROCESS ========");
 	[self dumpDecrypted];
 
 	// ZIP it up
-	BOOL success = [SSZipArchive createZipFileAtPath:IPAFile withContentsOfDirectory:zipDir];
-	NSLog(@"[dumpDecrypted] ZIP status: %s", (success)?"success":"failed");
+	NSLog(@"[dumpDecrypted] ======== STARTING ZIP ========");
+	NSLog(@"[dumpDecrypted] IPAFile: %@   //   zipDir: %@", IPAFile, zipDir);
+	unlink([IPAFile UTF8String]);
+	@try {
+		BOOL success = [SSZipArchive createZipFileAtPath:IPAFile 
+										withContentsOfDirectory:zipDir
+										keepParentDirectory:NO 
+										compressionLevel:1
+										password:nil
+										AES:NO
+										progressHandler:nil
+		];
+		NSLog(@"[dumpDecrypted] ZIP status: %s", (success)?"success":"failed");
+	}
+	@catch(NSException *e) {
+		NSLog(@"[dumpDecrypted] BAAAAAAAARF!!! , %@", e);
+	}
+	
 
 	// Clean up. Leave only the .ipa file.
 	[fm removeItemAtPath:zipDir error:nil];

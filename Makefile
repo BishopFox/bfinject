@@ -1,7 +1,23 @@
 DYLIBS=bfdecrypt.dylib
 BINARY_NAME=bfinject4realz
 BFINJECT_SRC=bfinject4realz.mm DumpDecrypted.mm 
-MINIZIP_SRC=SSZipArchive/minizip/ioapi.c SSZipArchive/minizip/mztools.c SSZipArchive/minizip/unzip.c SSZipArchive/minizip/zip.c
+MINIZIP_SRC=SSZipArchive/minizip/crypt.c \
+SSZipArchive/minizip/ioapi.c \
+SSZipArchive/minizip/ioapi_buf.c \
+SSZipArchive/minizip/ioapi_mem.c \
+SSZipArchive/minizip/minishared.c \
+SSZipArchive/minizip/unzip.c \
+SSZipArchive/minizip/zip.c \
+SSZipArchive/minizip/aes/aes_ni.c \
+SSZipArchive/minizip/aes/aescrypt.c \
+SSZipArchive/minizip/aes/aeskey.c \
+SSZipArchive/minizip/aes/aestab.c \
+SSZipArchive/minizip/aes/fileenc.c \
+SSZipArchive/minizip/aes/hmac.c \
+SSZipArchive/minizip/aes/prng.c \
+SSZipArchive/minizip/aes/pwd2key.c \
+SSZipArchive/minizip/aes/sha1.c
+#SSZipArchive/minizip/ioapi.c SSZipArchive/minizip/mztools.c SSZipArchive/minizip/unzip.c SSZipArchive/minizip/zip.c
 SSZIPARCHIVE_SRC=SSZipArchive/SSZipArchive.m
 LORGNETTE_SRC=lorgnette.m
 OBJS=$(addsuffix .o,$(basename $(BFINJECT_SRC))) \

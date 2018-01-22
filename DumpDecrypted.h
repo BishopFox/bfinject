@@ -12,4 +12,4 @@
 - (void)createIPAFile;
 -(BOOL)dumpDecryptedImage:(const struct mach_header *)image_mh fileName:(const char *)encryptedImageFilenameStr image:(int)imageNum;
 
-	@end
+@end

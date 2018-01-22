@@ -117,7 +117,7 @@ fi
 # Inject!
 #
 echo "[+] Injecting $DYLIB into target application, PID $PID"
-/jb/usr/bin/bfinject4realz $PID $DYLIB_PATH
+./bfinject4realz $PID $DYLIB_PATH
 
 #
 # EOF

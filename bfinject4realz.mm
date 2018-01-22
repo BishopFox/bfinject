@@ -302,7 +302,7 @@ int main(int argc, char ** argv)
   
   // Call dlopen() to load the requested shared library
   snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
-  retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)((uint64_t )RTLD_LAZY), 0, 0);
+  retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)((uint64_t )(RTLD_LAZY|RTLD_GLOBAL)), 0, 0);
 
   // Clean up the mess
   thread_terminate(thread);

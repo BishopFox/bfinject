@@ -3,12 +3,13 @@ Dylib injection for 64-bit iOS 11.x.y jailbroken (LiberiOS 11.0.1 tested) device
 
 ## Use
 * Jailbreak your iOS 11.0 - 11.1.2 device with http://newosxbook.com/liberios/ 
-* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device:
+* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your LiberiOS jailbroken device:
 ```
 ssh root@your-device-ip # (the password is 'alpine')
 export PATH=$PATH:/jb/usr/bin:/jb/bin:/jb/sbin:/jb/usr/sbin:/jb/usr/local/bin:
 cd /jb/usr/bin/
 wget http://<your_server>/bfinject.tar
+wget http://<your_server>/evil.dylib
 tar xvf bfinject.tar
 ```
 * Launch the target app
@@ -106,7 +107,7 @@ It side-loads a self-signed .dylib into a running Apple-signed App Store app lik
   * dlopen() will RET to the value in the $lr register, which is another RET instruction  
   * RET will return to RET will return to RET... ad infinitum  
 * Poll the thread's registers to check for $pc == address of ROP gadget (the RET instruction)
-* Terminate the thread, free the memory, jopb done.
+* Once the gadget is hit, terminate the thread, free the memory, job done.
 
 ## Known issues
 * None

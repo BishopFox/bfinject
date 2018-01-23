@@ -28,13 +28,9 @@
 #include <stdlib.h> 
 
 #define STACK_SIZE ((1024 * 1024) * 512) // 512MB stack
-#define ROP_blr_x8 "\x00\x01\x3f\xd6"
-#define ROP_br_x8 "\x00\x01\x1f\xd6"
-#define ROP_add_ret "\x91\xc0\x03\x5f\xd6"
 #define ROP_ret "\xc0\x03\x5f\xd6"
 #define ALIGNSIZE 8
 #define align64(x) ( ((x) + ALIGNSIZE - 1) & ~(ALIGNSIZE - 1) )
-#define ERR 0x00abcdef
 #define UNINITIALIZED 0x11223344
 
 static mach_port_t task = UNINITIALIZED;
@@ -46,9 +42,7 @@ static void *gadgetAddress = (void *)UNINITIALIZED;
 
 
 static void *find_gadget(const char *gadget, int gadgetLen) {
-    mach_msg_type_number_t info_count;
     kern_return_t kr;
-    arm_thread_state64_t state;
     vm_address_t addr;
     uint32_t depth = 1;
     vm_address_t address = 0;
@@ -66,8 +60,6 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
           printf("[bfinject] ERROR: vm_region_recurse_64 returned !=  KERN_SUCCESS. This only works with App Store apps.\n");
           break;
       }
-
-      //printf("[bfinject] c = %llu\na = 0x%x\ns = %llu\n", count, address, size);
 
       if (info.is_submap) {
           depth++;
@@ -126,10 +118,9 @@ static void get_task(int pid) {
 }
 
 
-extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
+extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
   kern_return_t kret;
-  arm_thread_state64_t state = {0}, savedState = {0};
-  kern_return_t err;
+  arm_thread_state64_t state = {0};
   mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
 
   // Find the address of the function to be called in the remote process
@@ -153,7 +144,7 @@ extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, char
   char *localFakeStack = (char *)malloc((size_t)STACK_SIZE);
 
   // Ok, now we handle the parameters being passed
-  char *argp = argMap;
+  char *argp = (char *)argMap;
   char *stackPtr = localFakeStack;
   uint64_t paramLen = 0;
 
@@ -230,7 +221,6 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
   printf("[bfinject] Waiting for thread to hit the infinite loop gadget...\n");
   while(1) {
     usleep(250000);
-    //thread_suspend(thread);
     thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, &stateCount);
 
     // are we in the infinite loop gadget yet?
@@ -243,8 +233,6 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
       // so long and thanks for all the fish
       break;
     }
-    
-    //thread_resume(thread);
   }
 
   // return value is in x0  
@@ -266,17 +254,13 @@ int main(int argc, char ** argv)
 {
   char argMap[128];
   char *pathToAppBinary;
-  char cmd[16384];
   int pid;
   uint64_t retval;
   kern_return_t kret;
 
   if(argc == 3) {
     pid = atoi(argv[1]);
-    pathToAppBinary = (char *)malloc((size_t)strlen(argv[2]) + 20);
-    memset(pathToAppBinary, 0, strlen(argv[2]) + 20);
-    snprintf(pathToAppBinary, strlen(argv[2]) + 19, "/%s", argv[2]);
-    printf("[bfinject] Full filename: %s\n", pathToAppBinary);
+    pathToAppBinary = argv[2];
   } else {
     printf("bfinject -=[ https://www.bishopfox.com ]=-\nSyntax: %s <pid> <path/to/dylib>\n", argv[0]);
     exit(1);

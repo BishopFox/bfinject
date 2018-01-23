@@ -1,12 +1,12 @@
 #!/jb/bin/bash
 
-PORT=1337
+CYCRIPT_PORT=1337
 
 function help {
     echo "Syntax: $0 -p PID <-l /path/to/yourdylib  |  -L feature>"
     echo
     echo For example:
-    echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $PORT"
+    echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $CYCRIPT_PORT"
     echo "     or "
     echo "   $0 -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice"
     echo
@@ -38,10 +38,10 @@ if [ "$3" == "-l" ]; then
     DYLIBS=("$4")
     PID=$2
 else
-    FEATURE=$4
+    FEATURE="$4"
     PID=$2
 
-    case $FEATURE in
+    case "$FEATURE" in
         cycript)
             DYLIBS=(dylibs/cycript.dylib dylibs/cycript-runner.dylib)
             ;;
@@ -67,41 +67,19 @@ else
 fi
 
 function clean_up {
-    rm -rf $DYLIB_DIR >/dev/null 2>&1
-    rm -f $RANDOM_NAME
+    rm -rf "$DYLIB_DIR" >/dev/null 2>&1
+    rm -f "$RANDOM_NAME"
 }
 
 #
-# We don't need all of these entitlements, but our power is over 9000.
+# Entitlements for dylib injection and for our injector binary.
 #
 cat > entitlements.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
-        <key>com.apple.private.skip-library-validation</key>
-        <true/>
         <key>platform-application</key>
-        <true/>
-        <key>com.apple.backboardd.debugapplications</key>
-        <true/>
-        <key>com.apple.backboardd.launchapplications</key>
-        <true/>
-        <key>com.apple.diagnosticd.diagnostic</key>
-        <true/>
-        <key>com.apple.frontboard.debugapplications</key>
-        <true/>
-        <key>com.apple.frontboard.launchapplications</key>
-        <true/>
-        <key>com.apple.springboard.debugapplications</key>
-        <true/>
-        <key>com.apple.springboard.launchapplications</key>
-        <true/>
-        <key>com.apple.security.network.client</key>
-        <true/>
-        <key>com.apple.security.network.server</key>
-        <true/>
-        <key>run-unsigned-code</key>
         <true/>
         <key>get-task-allow</key>
         <true/>
@@ -114,8 +92,8 @@ cat > entitlements.xml << EOF
 EOF
 
 for DYLIB in ${DYLIBS[@]}; do
-    if [ ! -f $DYLIB ]; then
-        echo $DYLIB doesn\'t exist
+    if [ ! -f "$DYLIB" ]; then
+        echo "$DYLIB" doesn\'t exist
         clean_up
         exit 1
     fi
@@ -123,10 +101,10 @@ for DYLIB in ${DYLIBS[@]}; do
     RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
     RANDOM_NAME=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
     DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
-    DYLIB_PATH=$DYLIB_DIR/$RAND.dylib
+    DYLIB_PATH="$DYLIB_DIR/$RAND.dylib"
 
-    cp bfinject4realz $RANDOM_NAME
-    chmod +x $RANDOM_NAME
+    cp bfinject4realz "$RANDOM_NAME"
+    chmod +x "$RANDOM_NAME"
 
     #
     # Find the full path to the target app binary
@@ -151,17 +129,16 @@ for DYLIB in ${DYLIBS[@]}; do
     #
     # Move the injectee dylib to a sandbox-friendly location
     #
-    mkdir $DYLIB_DIR
-    cp $DYLIB $DYLIB_PATH
+    mkdir "$DYLIB_DIR"
+    cp "$DYLIB" "$DYLIB_PATH"
 
     #
     # Sign the appropriate entitlements and Team ID into our dylib
     #
     echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
-    jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB_PATH > /dev/null 2>&1
+    jtool --sign platform --ent entitlements.xml --inplace --teamid "$TEAMID" "$DYLIB_PATH" > /dev/null 2>&1
     if [ "$?" != "0" ]; then
         echo jtool dylib signing error. barfing.
-        ls -l $DYLIB_DIR
         clean_up
         exit 1
     fi
@@ -169,9 +146,9 @@ for DYLIB in ${DYLIBS[@]}; do
     #
     # Sign the injector binary with the entitlements
     #
-    jtool --sign platform --ent entitlements.xml --inplace $RANDOM_NAME >/dev/null 2>&1
+    jtool --sign platform --ent entitlements.xml --inplace "$RANDOM_NAME" >/dev/null 2>&1
     if [ "$?" != "0" ]; then
-        echo jtool $RANDOM_NAME signing error. barfing.
+        echo jtool "$RANDOM_NAME" signing error. barfing.
         clean_up
         exit 1
     fi
@@ -180,7 +157,7 @@ for DYLIB in ${DYLIBS[@]}; do
     # Inject!
     #
     echo "[+] Injecting $DYLIB into target application, PID $PID"
-    ./${RANDOM_NAME} $PID $DYLIB_PATH
+    ./${RANDOM_NAME} $PID "$DYLIB_PATH"
 
     #
     # Clean up

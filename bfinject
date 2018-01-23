@@ -1,37 +1,68 @@
 #!/jb/bin/bash
 
+PORT=31337
+
+function help {
+    echo "Syntax: $0 -p PID <[-l /path/to/yourdylib] | [-L feature]>"
+    echo
+    echo For example:
+    echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $PORT"
+    echo "     or "
+    echo "   $0 -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice"
+    echo
+    echo Available features:
+    echo "  cycript    - Inject and run Cycript"
+    echo "  decrypt    - Create a decrypted copy of the target app"
+    echo "  test       - Inject a simple .dylib to make an entry in the console log"
+    echo
+}
+
 #
 # check args
 #
-if [ "$1" == "" -o "$2" == "" ]; then
-    echo "Syntax: $0 <pid> </path/to/yourdylib>"
-    echo
-    echo To avoid sandbox issues, put your dylib into a folder with this naming convention:
-    echo   /System/Library/Frameworks/YOURDYLIB.framework/YOURDYLIB.dylib
-    echo
+if [ "$1" != "-p" ]; then
+    help
     exit 1
 fi
 
-DYLIB=$2
-PID=$1
-RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
-RANDOM_NAME=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
-DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
-DYLIB_PATH="$DYLIB_DIR/${RAND}.dylib"
-
-if [ ! -f $DYLIB ]; then
-    echo $DYLIB doesn\'t exist
+if [ "$3" != "-l" -a "$3" != "-L" ]; then
+    help
     exit 1
 fi
 
-function clean_exit() {
+declare -a DYLIBS
+
+if [ "$3" == "-l" ]; then
+    FEATURE=""
+    DYLIBS=("$4")
+    PID=$2
+else
+    FEATURE=$4
+    PID=$2
+
+    case $FEATURE in
+        cycript)
+            DYLIBS=(dylibs/cycript.dylib dylibs/cycript-runner.dylib)
+            ;;
+        
+        decrypt)
+            DYLIBS=(dylibs/bfdecrypt.dylib)
+            ;;
+
+        test)
+            DYLIBS=(dylibs/simple.dylib)
+            ;;
+        default)
+            help
+            exit 1
+            ;;
+    esac
+fi
+
+function clean_up {
     rm -rf $DYLIB_DIR >/dev/null 2>&1
     rm -f $RANDOM_NAME
-    exit $1
 }
-
-cp bfinject4realz $RANDOM_NAME
-chmod +x $RANDOM_NAME
 
 #
 # We don't need all of these entitlements, but our power is over 9000.
@@ -73,59 +104,83 @@ cat > /jb/usr/bin/entitlements.xml << EOF
 </plist>
 EOF
 
-#
-# Find the full path to the target app binary
-#
-BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2 -d\ `
-echo "[+] Injecting into '$BINARY'"
+for DYLIB in ${DYLIBS[@]}; do
+    if [ ! -f $DYLIB ]; then
+        echo $DYLIB doesn\'t exist
+        clean_up
+        exit 1
+    fi
+    
+    RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
+    RANDOM_NAME=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
+    DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
+    DYLIB_PATH=$DYLIB_DIR/$RAND.dylib
 
-#
-# Get the Team ID that signed the target app's binary.
-# We need this so we can re-sign the injected .dylib to fool the kernel
-# into assuming the .dylib is part of the injectee bundle.
-# This allows is to map the .dylib into the target's process space via dlopen().
-#
-echo "[+] Getting Team ID from target application..."
-TEAMID=`jtool --sig --ent "$BINARY" 2>&1 | grep 'Team ID' |cut -b 16- -n|cut -f1 -d\  |head -n1`
-if [ "$TEAMID" == "" ]; then
-	echo Error, no Team ID. Wat.
-	clean_exit 1
-fi
+    cp bfinject4realz $RANDOM_NAME
+    chmod +x $RANDOM_NAME
 
-#
-# Move the injectee dylib to a sandbox-friendly location
-#
-mkdir $DYLIB_DIR
-cp $DYLIB $DYLIB_PATH
+    #
+    # Find the full path to the target app binary
+    #
+    BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2 -d\ `
+    echo "[+] Injecting into '$BINARY'"
 
-#
-# Sign the appropriate entitlements and Team ID into our dylib
-#
-echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
-jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB_PATH > /dev/null 2>&1
-if [ "$?" != "0" ]; then
-	echo jtool dylib signing error. barfing.
-	ls -l $DYLIB_DIR
-	clean_exit 1
-fi
+    #
+    # Get the Team ID that signed the target app's binary.
+    # We need this so we can re-sign the injected .dylib to fool the kernel
+    # into assuming the .dylib is part of the injectee bundle.
+    # This allows is to map the .dylib into the target's process space via dlopen().
+    #
+    echo "[+] Getting Team ID from target application..."
+    TEAMID=`jtool --sig --ent "$BINARY" 2>&1 | grep 'Team ID' |cut -b 16- -n|cut -f1 -d\  |head -n1`
+    if [ "$TEAMID" == "" ]; then
+        echo Error, no Team ID. Wat.
+        clean_up
+        exit 1
+    fi
 
-#
-# Sign the injector binary with the entitlements
-#
-jtool --sign platform --ent entitlements.xml --inplace $RANDOM_NAME >/dev/null 2>&1
-if [ "$?" != "0" ]; then
-    echo jtool $RANDOM_NAME signing error. barfing.
-    clean_exit 1
-fi
+    #
+    # Move the injectee dylib to a sandbox-friendly location
+    #
+    mkdir $DYLIB_DIR
+    cp $DYLIB $DYLIB_PATH
 
-#
-# Inject!
-#
-echo "[+] Injecting $DYLIB into target application, PID $PID"
-${RANDOM_NAME} $PID $DYLIB_PATH
+    #
+    # Sign the appropriate entitlements and Team ID into our dylib
+    #
+    echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
+    jtool --sign platform --ent entitlements.xml --inplace --teamid $TEAMID $DYLIB_PATH > /dev/null 2>&1
+    if [ "$?" != "0" ]; then
+        echo jtool dylib signing error. barfing.
+        ls -l $DYLIB_DIR
+        clean_up
+        exit 1
+    fi
+
+    #
+    # Sign the injector binary with the entitlements
+    #
+    jtool --sign platform --ent entitlements.xml --inplace $RANDOM_NAME >/dev/null 2>&1
+    if [ "$?" != "0" ]; then
+        echo jtool $RANDOM_NAME signing error. barfing.
+        clean_up
+        exit 1
+    fi
+
+    #
+    # Inject!
+    #
+    echo "[+] Injecting $DYLIB into target application, PID $PID"
+    ./${RANDOM_NAME} $PID $DYLIB_PATH
+
+    #
+    # Clean up
+    #
+    clean_up
+done
 
 #
 # EOF
 #
 echo "[+] So long and thanks for all the fish."
-clean_exit 0
+exit 0

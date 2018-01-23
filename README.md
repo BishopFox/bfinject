@@ -16,13 +16,27 @@ tar xvf bfinject.tar
 ```
 * Launch the target app
 * Find your app's PID using `ps`
-* Type `bash bfinject <PID> <your.dylib>`
+* Type `bash bfinject` for help
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
-* Magic happens:
+```
+-bash-3.2# bash bfinject
+Syntax: bfinject -p PID <[-l /path/to/yourdylib] | [-L feature]>
+
+For example:
+   bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 31337
+     or
+   bfinject -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice
+
+Available features:
+  cycript    - Inject and run Cycript
+  decrypt    - Create a decrypted copy of the target app
+  test       - Inject a simple .dylib to make an entry in the console log
+```
+* For example, this will decrypt a running app with PID 802:
 ```
 -bash-3.2# pwd
 /var/bfinject
--bash-3.2# bash bfinject 802 ./bfdecrypt.dylib
+-bash-3.2# bash bfinject -p 802 -L decrypt
 [+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/redacted.app/redacted'
 [+] Getting Team ID from target application...
 [+] Signing injectable .dylib with Team ID REDACTED and platform entitlements...

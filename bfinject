@@ -3,7 +3,7 @@
 PORT=31337
 
 function help {
-    echo "Syntax: $0 -p PID <[-l /path/to/yourdylib] | [-L feature]>"
+    echo "Syntax: $0 -p PID <-l /path/to/yourdylib  |  -L feature>"
     echo
     echo For example:
     echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $PORT"

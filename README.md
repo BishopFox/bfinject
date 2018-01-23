@@ -1,7 +1,7 @@
 # bfinject
 Dylib injection for Jailbroken 64-bit iOS 11.0 - 11.1.2 (only LiberiOS has been tested).
 
-Can inject arbitrary .dylibs into running App Store apps, and has built-in support for iSpy, Cycript, and app decryption. This is all self-contained and does not use QiLin.
+Can inject arbitrary .dylibs into running App Store apps, and has built-in support for iSpy (a pre-release, buggy, incomplete preview version of Bishop Fox's iSpy2 class browser), Cycript, and app decryption. This is all self-contained and does not use QiLin.
 
 ## Use
 * Jailbreak your iOS 11.0 - 11.1.2 device with http://newosxbook.com/liberios/ 

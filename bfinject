@@ -139,7 +139,7 @@ for DYLIB in ${DYLIBS[@]}; do
     # This allows is to map the .dylib into the target's process space via dlopen().
     #
     echo "[+] Getting Team ID from target application..."
-    TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep Identifier | head -n1 |sed 's/[( ]//g'|cut -f2 -d:|cut -f1 -d\(`
+    TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep Identifier | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
     if [ "$TEAMID" == "" ]; then
         echo Error, no Team ID. Wat.
         clean_up

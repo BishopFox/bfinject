@@ -25,12 +25,12 @@ tar xvf bfinject.tar
 Syntax: bfinject -p PID <[-l /path/to/yourdylib] | [-L feature]>
 
 For example:
-   bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 31337
+   bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 1337
      or
    bfinject -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice
 
 Available features:
-  cycript    - Inject and run Cycript
+  cycript    - Inject and run Cycript. Use cycript -r <deviceIP>:1337
   decrypt    - Create a decrypted copy of the target app
   test       - Inject a simple .dylib to make an entry in the console log
   iSpy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
@@ -115,7 +115,7 @@ One of bfinject's features is to incorporate common pentesting tools, like Cycri
 Once Cycript has been injected, you can connect to it from your MacBook like this:
 
 ```
-carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:31337
+carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:1337
 cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject] path]
 @"/var/mobile/Containers/Data/Application/169C799E-5166-4BF8-AE01-FC9F14684A34/Documents"
 ```

@@ -31,6 +31,7 @@ Available features:
   cycript    - Inject and run Cycript
   decrypt    - Create a decrypted copy of the target app
   test       - Inject a simple .dylib to make an entry in the console log
+  iSpy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
 ```
 * For example, this will decrypt a running app with PID 802:
 ```

@@ -121,27 +121,7 @@ cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDom
 ```
 
 ## How does it work?
-In stages. Seriously. The iOS ecosystem is batshit crazy with a bajillion technical controls to mitigate exploits. 
-
-First, some history. Ian Beer dropped his "async_wait" exploit that gets task_for_pid zero (aka "tfp0"), which is a magical port into the kernel where you can get it to do stuff for you, which is nice when circumventing security controls.
-
-Jonathan Levin took async_wait and built a proof-of-concept jailbreak called LiberiOS, which gives us a working root SSH shell on iPhones (actually any modern iPhone/iPad). LiberiOS makes it possible to run self-signed binaries and load self-signed shared libraries, so long as we do some careful code signing. LiberiOS does this by patching the Apple Mobile File Integry daemon, "amfid", which does the duty of verifying the codesigning integrity of executable code loaded from files (mach-o binaries, shared libraries, frameworks, etc). 
-
-But that's only userland. There are also codesigning checks in the kernel itself (ok, kexts), and those aren't patched because of KPP: kernel patch protection. It's sophisticated introspection built into the kernel to detect and defeat modifications to itself; I believe on modern phones there's some hardware support, too, but much Googling required for that. It's really hard to break, which is why currently only the userland half of codesigning is broken on iOS11. Which gives us some restrictions on what we can do with a jailbreak. 
-
-For example, there's an idiosyncrasy that makes it impossible to directly run shell scripts. Instead of `./script.sh` you have to run `bash ./script.sh`. Wut. 
-
-Worse than that, we can't launch App Store apps from the command-line because only SpringBoard has entitlements to do that, and there's no known bypass right now. This means we can't do all our favorite DYLD_LOAD_LIBRARIES tricks to preload malicious shared libraries into applications at launch time. 
-
-This one issue breaks Cydia, MobileSubstrate, iSpy, Frida, Cycript, Fishhook and any other hack you've ever used to sideload code into an App Store app.
-
-Not all was lost though, because Levin hinted at another means of shared library injection: 
-`Arbitrary Dylib loading works. NO, CYDIA SUBSTRATE WON'T. Not my problem - @Saurik owns this one`
-
-Yeah well, despite some work on Electra and random forks of Ian Beer's exploit, nobody has come up with a nice, simple way of injecting arbitrary dylibs into App Store apps. So I decided to kill two birds with one stone: brush up my ROP on arm64 and build an injection framework to bring back our favorite toys. And here we are.
-
-## Ok, really. How does it work?
-It side-loads a self-signed .dylib into a running Apple-signed App Store app like this:
+At a high level, it side-loads a self-signed .dylib into a running Apple-signed App Store app like this:
 
 * Allocate some memory pages in the remote process for a new temporary stack
 * Place the string "/path/to/my.dylib" at known location in stack
@@ -156,11 +136,14 @@ It side-loads a self-signed .dylib into a running Apple-signed App Store app lik
   * $fp = Quarter way into the temporary stack  
   * $lr = Address of ROP gadget  
 * Resume the thread. The following will happen:
-  * dlopen() will run and our library will be injected  
+  * _pthread_set_self is called in order to setup threading for dlopen()
+  * dlopen() is called to inject our evil shared library  
   * dlopen() will RET to the value in the $lr register, which is another RET instruction  
   * RET will return to RET will return to RET... ad infinitum  
 * Poll the thread's registers to check for $pc == address of ROP gadget (the RET instruction)
 * Once the gadget is hit, terminate the thread, free the memory, job done.
+
+For a low-level description, see the source.
 
 ## Known issues
 * None

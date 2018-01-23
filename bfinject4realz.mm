@@ -148,9 +148,6 @@ extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, char
   state.__sp = (uint64_t)(remoteStack + STACK_SIZE) - (STACK_SIZE / 4);  // Put $sp bang in the middle of the fake stack frame
   state.__fp = state.__sp;
 
-  printf("[bfinject] New CPU state:\n             $pc = 0x%llx\n             $sp = 0x%llx\n             \
-$x0 = 0x%llx\n             $x1 = 0x%llx\n             $x2 = 0x%llx\n             $x3 = 0x%llx\n", 
-state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
 
   // Allocate a STACK_SIZE local buffer that we'll populate before copying it to the remote process
   char *localFakeStack = (char *)malloc((size_t)STACK_SIZE);
@@ -212,6 +209,10 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
     }
   }
 
+  printf("[bfinject] New CPU state:\n             $pc = 0x%llx\n             $sp = 0x%llx\n             \
+$x0 = 0x%llx\n             $x1 = 0x%llx\n             $x2 = 0x%llx\n             $x3 = 0x%llx\n", 
+state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
+
   // Copy fake stack buffer over to the new stack frame in the remote process
   kret = vm_write(task, remoteStack, (vm_address_t)localFakeStack, STACK_SIZE);
   
@@ -251,6 +252,16 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
 }
 
 
+char *readmem(uint64_t addr, vm_size_t *len) {
+  static char buf[16384];
+
+  memset(buf, 0, 16384);
+  vm_read_overwrite(task, addr, 16383, (vm_address_t)buf, len);
+  
+  return buf;
+}
+
+
 int main(int argc, char ** argv)
 {
   char argMap[128];
@@ -262,8 +273,10 @@ int main(int argc, char ** argv)
 
   if(argc == 3) {
     pid = atoi(argv[1]);
-    pathToAppBinary = (char *)malloc((size_t)strlen(argv[2]) + 17);
-    snprintf(pathToAppBinary, strlen(argv[2]) + 16, "///////////////%s", argv[2]);
+    pathToAppBinary = (char *)malloc((size_t)strlen(argv[2]) + 20);
+    memset(pathToAppBinary, 0, strlen(argv[2]) + 20);
+    snprintf(pathToAppBinary, strlen(argv[2]) + 19, "/%s", argv[2]);
+    printf("[bfinject] Full filename: %s\n", pathToAppBinary);
   } else {
     printf("bfinject -=[ https://www.bishopfox.com ]=-\nSyntax: %s <pid> <path/to/dylib>\n", argv[0]);
     exit(1);
@@ -306,6 +319,14 @@ int main(int argc, char ** argv)
   // Call dlopen() to load the requested shared library
   snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
   retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)(uint64_t )(RTLD_NOW|RTLD_GLOBAL), 0, 0);
+  printf("[bfinject] dlopen() returned 0x%llx (%s)\n", (uint64_t)retval, (retval==0)?"FAILURE":"success");
+  if(retval == 0) {
+    // Call dlerror() to see what went wrong
+    retval = ropcall(pid, "dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
+    vm_size_t bytesRead;
+    char *buf = readmem(retval, &bytesRead);
+    printf("[bfdecrypt] dlerror() returned: %s\n", buf);
+  }
 
   // Clean up the mess
   thread_terminate(thread);

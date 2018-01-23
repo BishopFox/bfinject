@@ -74,12 +74,14 @@ function clean_up {
 #
 # We don't need all of these entitlements, but our power is over 9000.
 #
-cat > /jb/usr/bin/entitlements.xml << EOF
+cat > entitlements.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-<key>platform-application</key>
+    <dict>
+        <key>com.apple.private.skip-library-validation</key>
+        <true/>
+        <key>platform-application</key>
         <true/>
         <key>com.apple.backboardd.debugapplications</key>
         <true/>
@@ -139,7 +141,7 @@ for DYLIB in ${DYLIBS[@]}; do
     # This allows is to map the .dylib into the target's process space via dlopen().
     #
     echo "[+] Getting Team ID from target application..."
-    TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep Identifier | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
+    TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
     if [ "$TEAMID" == "" ]; then
         echo Error, no Team ID. Wat.
         clean_up

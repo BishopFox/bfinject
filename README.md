@@ -78,6 +78,24 @@ Available features:
 * Check the console log for the device, it will tell you where the decrypted IPA is stored:
 `[dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa`
 
+## Cycript
+One of bfinject's features is to incorporate common pentesting tools, like Cycript. More will be added with time. To use Cycript you will need the Cycript command-line client installed on your MacBook (http://www.cycript.org/). Then, once bfinject is installed on your test device, do this to inject Cycript into your target process:
+
+```
+-bash-3.2# bash bfinject -p <PID_OF_APP> -L cycript
+[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/Redacted.app/Redacted'
+...magic happens...
+[+] So long and thanks for all the fish.
+```
+
+Once Cycript has been injected, you can connect to it from your MacBook like this:
+
+```
+carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:31337
+cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject] path]
+@"/var/mobile/Containers/Data/Application/169C799E-5166-4BF8-AE01-FC9F14684A34/Documents"
+```
+
 ## Credits
 * Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)
 * Dmitry Rodionov for lorgnette (https://github.com/rodionovd/liblorgnette/)

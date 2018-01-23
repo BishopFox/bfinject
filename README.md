@@ -16,13 +16,27 @@ tar xvf bfinject.tar
 ```
 * Launch the target app
 * Find your app's PID using `ps`
-* Type `bash bfinject <PID> <your.dylib>`
+* Type `bash bfinject` for help
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
-* Magic happens:
+```
+-bash-3.2# bash bfinject
+Syntax: bfinject -p PID <[-l /path/to/yourdylib] | [-L feature]>
+
+For example:
+   bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 31337
+     or
+   bfinject -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice
+
+Available features:
+  cycript    - Inject and run Cycript
+  decrypt    - Create a decrypted copy of the target app
+  test       - Inject a simple .dylib to make an entry in the console log
+```
+* For example, this will decrypt a running app with PID 802:
 ```
 -bash-3.2# pwd
 /var/bfinject
--bash-3.2# bash bfinject 802 ./bfdecrypt.dylib
+-bash-3.2# bash bfinject -p 802 -L decrypt
 [+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/redacted.app/redacted'
 [+] Getting Team ID from target application...
 [+] Signing injectable .dylib with Team ID REDACTED and platform entitlements...
@@ -63,6 +77,24 @@ tar xvf bfinject.tar
 ```
 * Check the console log for the device, it will tell you where the decrypted IPA is stored:
 `[dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa`
+
+## Cycript
+One of bfinject's features is to incorporate common pentesting tools, like Cycript. More will be added with time. To use Cycript you will need the Cycript command-line client installed on your MacBook (http://www.cycript.org/). Then, once bfinject is installed on your test device, do this to inject Cycript into your target process:
+
+```
+-bash-3.2# bash bfinject -p <PID_OF_APP> -L cycript
+[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/Redacted.app/Redacted'
+...magic happens...
+[+] So long and thanks for all the fish.
+```
+
+Once Cycript has been injected, you can connect to it from your MacBook like this:
+
+```
+carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:31337
+cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject] path]
+@"/var/mobile/Containers/Data/Application/169C799E-5166-4BF8-AE01-FC9F14684A34/Documents"
+```
 
 ## Credits
 * Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)

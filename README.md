@@ -1,5 +1,7 @@
 # bfinject
-Dylib injection for 64-bit iOS 11.x.y jailbroken (LiberiOS 11.0.1 tested) devices where x <= 1. Incorporates a .dylib that can be used to decrypt entire iOS apps and corresponding frameworks and generate clean, unencrypted .ipa files of App Store apps.
+Dylib injection for Jailbroken 64-bit iOS 11.0 - 11.1.2 (only LiberiOS has been tested).
+
+Can inject arbitrary .dylibs into running App Store apps, and has built-in support for iSpy, Cycript, and app decryption.
 
 ## Use
 * Jailbreak your iOS 11.0 - 11.1.2 device with http://newosxbook.com/liberios/ 
@@ -33,7 +35,10 @@ Available features:
   test       - Inject a simple .dylib to make an entry in the console log
   iSpy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
 ```
-* For example, this will decrypt a running app with PID 802:
+
+## Decrypt App Store apps
+Here's an example decrypting the app running with PID 802:
+
 ```
 -bash-3.2# pwd
 /var/bfinject
@@ -76,8 +81,26 @@ Available features:
 [bfinject] We hit the infinite loop, call complete. Restoring stack and registers.
 [+] So long and thanks for all the fish.
 ```
-* Check the console log for the device, it will tell you where the decrypted IPA is stored:
-`[dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa`
+
+Check the console log for the device, it will tell you where the decrypted IPA is stored. For example:
+
+```
+[dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa
+```
+
+Getting the .ipa off the device can be done with netcat. On your laptop:
+
+```
+ncat -l 0.0.0.0 12345 > decrypted.ipa
+```
+
+And on the jailbroken device:
+
+```
+cat /path/to/decrypted.ipa > /dev/tcp/<IP_OF_YOUR_COMPUTER>/12345
+````
+
+The .ipa will be a clone of the original .ipa from the App Store, except that the main binary and all its accompanying frameworks and shared libraries will be decrypted. The CRYPTID flag will be 0 in each previously-encrypted file. You can take the .ipa, extract the app, modify it as needed, re-sign it with your own developer cert, and deploy it onto non-jailbroken devices as needed.
 
 ## Cycript
 One of bfinject's features is to incorporate common pentesting tools, like Cycript. More will be added with time. To use Cycript you will need the Cycript command-line client installed on your MacBook (http://www.cycript.org/). Then, once bfinject is installed on your test device, do this to inject Cycript into your target process:
@@ -96,13 +119,6 @@ carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:31337
 cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject] path]
 @"/var/mobile/Containers/Data/Application/169C799E-5166-4BF8-AE01-FC9F14684A34/Documents"
 ```
-
-## Credits
-* Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)
-* Dmitry Rodionov for lorgnette (https://github.com/rodionovd/liblorgnette/)
-* Jonathan Levin for the  LiberiOS jailbreak (http://newosxbook.com/liberios/)
-* Ian Beer for the async_wake exploit (https://bugs.chromium.org/p/project-zero/issues/detail?id=1417)
-* Apple for a great mobile OS
 
 ## How does it work?
 In stages. Seriously. The iOS ecosystem is batshit crazy with a bajillion technical controls to mitigate exploits. 
@@ -148,3 +164,10 @@ It side-loads a self-signed .dylib into a running Apple-signed App Store app lik
 
 ## Known issues
 * None
+
+## Credits
+* Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)
+* Dmitry Rodionov for lorgnette (https://github.com/rodionovd/liblorgnette/)
+* Jonathan Levin for the  LiberiOS jailbreak (http://newosxbook.com/liberios/)
+* Ian Beer for the async_wake exploit (https://bugs.chromium.org/p/project-zero/issues/detail?id=1417)
+* Apple for a great mobile OS

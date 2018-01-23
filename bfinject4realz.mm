@@ -63,8 +63,8 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
         break;
       }
       if(kr != KERN_SUCCESS) {
-          printf("[bfinject] vm_region_recurse_64 returned !=  KERN_SUCCESS\n");
-          continue;
+          printf("[bfinject] ERROR: vm_region_recurse_64 returned !=  KERN_SUCCESS. This only works with App Store apps.\n");
+          break;
       }
 
       //printf("[bfinject] c = %llu\na = 0x%x\ns = %llu\n", count, address, size);
@@ -119,7 +119,7 @@ static void get_task(int pid) {
   // Get port for target app's process
   if(task == UNINITIALIZED) {
     int kret = task_for_pid(mach_task_self(), pid, &task);
-    if(kret!=KERN_SUCCESS) {
+    if(kret != KERN_SUCCESS) {
       printf("[bfinject] task_for_pid() failed with message %s!\n",mach_error_string(kret));
     }
   }
@@ -273,7 +273,11 @@ int main(int argc, char ** argv)
   get_task(pid);
   
   printf("[bfinject] Creating new remote thread\n");
-  thread_create(task, &thread);
+  if((kret = thread_create(task, &thread)) != KERN_SUCCESS) {
+    printf("[bfinject] Failed to create thread in remote process. Is it really an App Store app?\n");
+    printf("[bfinject] thread_create() returned %d\n[bfinject] errno = %d = %s\n", kret, errno, strerror(errno));
+    exit(1);
+  }
   printf("[bfinject] Thread ID: %u (0x%x)\n", thread, thread);
 
   // Find an infinite loop ROP gadget in the remote process

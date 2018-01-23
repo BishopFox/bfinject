@@ -1,6 +1,6 @@
 #!/jb/bin/bash
 
-PORT=31337
+PORT=1337
 
 function help {
     echo "Syntax: $0 -p PID <-l /path/to/yourdylib  |  -L feature>"
@@ -14,6 +14,7 @@ function help {
     echo "  cycript    - Inject and run Cycript"
     echo "  decrypt    - Create a decrypted copy of the target app"
     echo "  test       - Inject a simple .dylib to make an entry in the console log"
+    echo "  ispy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/"
     echo
 }
 
@@ -51,6 +52,12 @@ else
 
         test)
             DYLIBS=(dylibs/simple.dylib)
+            ;;
+        ispy)
+            DYLIBS=(dylibs/iSpy.dylib)
+            ;;
+        iSpy)
+            DYLIBS=(dylibs/iSpy.dylib)
             ;;
         default)
             help

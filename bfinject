@@ -91,6 +91,26 @@ cat > entitlements.xml << EOF
 </plist>
 EOF
 
+#
+# Detect LiberiOS vs Electra
+#
+if [ -f /bootstrap/inject_criticald ]; then
+    # This is Electra
+    echo "[+] Electra detected."
+    cp jtool.liberios /bootstrap/usr/local/bin/
+    chmod +x /bootstrap/usr/local/bin/jtool.liberios
+    JTOOL=/bootstrap/usr/local/bin/jtool.liberios
+    INJECTOR=/bootstrap/inject_criticald
+elif [ -f /jb/usr/local/bin/jtool ]; then
+    # This is LiberiOS
+    echo "[+] Liberios detected"
+    JTOOL=jtool
+    INJECTOR=`pwd`/bfinject4realz
+else
+    echo "[!] Unknown jailbreak. Aborting."
+    exit 1
+fi
+
 for DYLIB in ${DYLIBS[@]}; do
     if [ ! -f "$DYLIB" ]; then
         echo "$DYLIB" doesn\'t exist
@@ -98,12 +118,14 @@ for DYLIB in ${DYLIBS[@]}; do
         exit 1
     fi
     
+    # Use random filenames to avoid cached binaries causing "Killed: 9" messages.
     RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
     RANDOM_NAME=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
     DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
     DYLIB_PATH="$DYLIB_DIR/$RAND.dylib"
 
-    cp bfinject4realz "$RANDOM_NAME"
+    # We'll give the injector as a random filename
+    cp "$INJECTOR" "$RANDOM_NAME"
     chmod +x "$RANDOM_NAME"
 
     #
@@ -119,9 +141,9 @@ for DYLIB in ${DYLIBS[@]}; do
     # This allows is to map the .dylib into the target's process space via dlopen().
     #
     echo "[+] Getting Team ID from target application..."
-    TEAMID=`./jtool.liberios --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
+    TEAMID=`$JTOOL --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
     if [ "$TEAMID" == "" ]; then
-        TEAMID=`./jtool.liberios --sig --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
+        TEAMID=`$JTOOL --sig --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
         if [ "$TEAMID" == "" ]; then
             echo "[+] WARNING: No Team ID found. Continuing regardless, but expect weird stuff to happen."
         fi
@@ -134,10 +156,10 @@ for DYLIB in ${DYLIBS[@]}; do
     cp "$DYLIB" "$DYLIB_PATH"
 
     #
-    # Sign the appropriate entitlements and Team ID into our dylib
+    # Sign platform entitlements and Team ID into our dylib
     #
     echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
-    ./jtool.liberios --sign platform --ent entitlements.xml --inplace --teamid "$TEAMID" "$DYLIB_PATH" > /dev/null 2>&1
+    $JTOOL --sign platform --ent entitlements.xml --inplace --teamid "$TEAMID" "$DYLIB_PATH" > /dev/null 2>&1
     if [ "$?" != "0" ]; then
         echo jtool dylib signing error. barfing.
         clean_up
@@ -145,9 +167,9 @@ for DYLIB in ${DYLIBS[@]}; do
     fi
 
     #
-    # Sign the injector binary with the entitlements
+    # Sign the randomly-renamed injector binary with  platform entitlements
     #
-    ./jtool.liberios --sign platform --ent entitlements.xml --inplace "$RANDOM_NAME" >/dev/null 2>&1
+    $JTOOL --sign platform --ent entitlements.xml --inplace "$RANDOM_NAME" >/dev/null 2>&1
     if [ "$?" != "0" ]; then
         echo jtool "$RANDOM_NAME" signing error. barfing.
         clean_up
@@ -157,17 +179,8 @@ for DYLIB in ${DYLIBS[@]}; do
     #
     # Inject!
     #
-    echo "[+] Injecting $DYLIB into target application, PID $PID"
-    if [ -f /bootstrap/inject_criticald ]; then
-        # This is Electra
-        echo "[+] Electra detected. Using built-in /bootstrap/inject_criticald to inject the dylib"
-        /bootstrap/inject_criticald $PID "$DYLIB_PATH"
-    else
-        # LiberiOS (assumed)
-        echo "[+] LiberiOS assumed. Using Bishop Fox bfinject to inject the dylib"
-        ./${RANDOM_NAME} $PID "$DYLIB_PATH"
-    fi
-
+    "$RANDOM_NAME" "$PID" "$DYLIB_PATH"
+    
     #
     # Clean up
     #

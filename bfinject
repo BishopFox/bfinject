@@ -13,7 +13,7 @@ function help {
     echo "   $0 -P Reddit.app -l /path/to/evil.dylib   # Injects the .dylib of your choice in the Reddit app"
     echo 
     echo "Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name."
-    echo "Just enter \"-P identifier\" where \"identifier\" is a strings unique to your app, e.g. \"fing.app\"."
+    echo "Just enter \"-P identifier\" where \"identifier\" is a string unique to your app, e.g. \"fing.app\"."
     echo
     echo Available features:
     echo "  cycript    - Inject and run Cycript"

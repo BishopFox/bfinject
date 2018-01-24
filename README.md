@@ -36,28 +36,33 @@ tar xvf bfinject.tar
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
 ```
 -bash-3.2# bash bfinject
-Syntax: bfinject -p PID <[-l /path/to/yourdylib] | [-L feature]>
+Syntax: bfinject [-p PID | -P appname] [-l /path/to/yourdylib | -L feature]
 
 For example:
    bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 1337
      or
    bfinject -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice
+     or
+   bfinject -P Reddit.app -l /path/to/evil.dylib   # Injects the .dylib of your choice in the Reddit app
+
+Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name.
+Just enter "-P identifier" where "identifier" is a string unique to your app, e.g. "fing.app".
 
 Available features:
-  cycript    - Inject and run Cycript. Use cycript -r <deviceIP>:1337
+  cycript    - Inject and run Cycript
   decrypt    - Create a decrypted copy of the target app
   test       - Inject a simple .dylib to make an entry in the console log
-  iSpy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
+  ispy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
 ```
 
 ## Decrypt App Store apps
-Here's an example decrypting the app running with PID 802 on a LiberiOS-jailbroken device:
+Here's an example decrypting the Reddit app on a LiberiOS-jailbroken device:
 
 ```
 -bash-3.2# pwd
 /jb/bfinject
--bash-3.2# bash bfinject -p 802 -L decrypt
-[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/redacted.app/redacted'
+-bash-3.2# bash bfinject -P Reddit -L decrypt
+[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/Reddit.app/Reddit'
 [+] Getting Team ID from target application...
 [+] Signing injectable .dylib with Team ID REDACTED and platform entitlements...
 [+] Injecting bfdecrypt.dylib into target application, PID 802

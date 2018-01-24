@@ -6,11 +6,11 @@ function help {
     echo "Syntax: $0 [-p PID | -P appname] [-l /path/to/yourdylib | -L feature]"
     echo
     echo For example:
-    echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $CYCRIPT_PORT"
-    echo "     or "
-    echo "   $0 -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice"
+    echo "   $0 -P Reddit.app -l /path/to/evil.dylib   # Injects evil.dylib into the Reddit app"
     echo "     or"
-    echo "   $0 -P Reddit.app -l /path/to/evil.dylib   # Injects the .dylib of your choice in the Reddit app"
+    echo "   $0 -p 1234 -L cycript                     # Inject Cycript into PID"
+    echo "     or "
+    echo "   $0 -p 4566 -l /path/to/evil.dylib         # Injects the .dylib of your choice into PID"
     echo 
     echo "Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name."
     echo "Just enter \"-P identifier\" where \"identifier\" is a string unique to your app, e.g. \"fing.app\"."

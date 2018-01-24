@@ -31,7 +31,6 @@ tar xvf bfinject.tar
 
 ## Using bfinject
 * Launch the target app into which you will inject your shared library
-* Find your app's PID using `ps`
 * Type `bash bfinject` for help
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
 ```
@@ -39,11 +38,11 @@ tar xvf bfinject.tar
 Syntax: bfinject [-p PID | -P appname] [-l /path/to/yourdylib | -L feature]
 
 For example:
-   bfinject -p 1234 -L cycript               # Injects Cycript into PID, listening on port 1337
+   bfinject -P Reddit.app -l /path/to/evil.dylib   # Injects evil.dylib into the Reddit app
      or
-   bfinject -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice
+   bfinject -p 1234 -L cycript                     # Inject Cycript into PID
      or
-   bfinject -P Reddit.app -l /path/to/evil.dylib   # Injects the .dylib of your choice in the Reddit app
+   bfinject -p 4566 -l /path/to/evil.dylib         # Injects the .dylib of your choice into PID
 
 Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name.
 Just enter "-P identifier" where "identifier" is a string unique to your app, e.g. "fing.app".

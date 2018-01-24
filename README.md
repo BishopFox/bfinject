@@ -1,11 +1,24 @@
 # bfinject
-Dylib injection for Jailbroken 64-bit iOS 11.0 - 11.1.2 (only LiberiOS has been tested).
+Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.1.2. Compatible with Electra and LiberiOS jailbreaks.
 
-Can inject arbitrary .dylibs into running App Store apps, and has built-in support for iSpy (a pre-release, buggy, incomplete preview version of Bishop Fox's iSpy2 class browser), Cycript, and app decryption. This is all self-contained and does not use QiLin.
+bfinject loads arbitrary dylibs into running App Store apps. It has built-in support for decrypting App Store apps, and comes bundled with iSpy and Cycript.
 
-## Use
-* Jailbreak your iOS 11.0 - 11.1.2 device with http://newosxbook.com/liberios/ 
-* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your LiberiOS jailbroken device:
+On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinjector4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works.
+
+## Electra Setup
+* Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
+* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first, because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
+```
+ssh root@your-device-ip # (the password is 'alpine')
+mkdir bfinject
+cd bfinject
+wget http://<your_server>/bfinject.tar
+tar xvf bfinject.tar
+```
+
+## LiberiOS Setup
+* Jailbreak your iOS 11.0 - 11.1.2 device with LiberiOS >= 11.0.3
+* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first, because Github enforces SSL, but the LiberiOS version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')
 export PATH=$PATH:/jb/usr/bin:/jb/bin:/jb/sbin:/jb/usr/sbin:/jb/usr/local/bin:
@@ -13,10 +26,11 @@ cd /jb
 mkdir bfinject
 cd bfinject
 wget http://<your_server>/bfinject.tar
-wget http://<your_server>/evil.dylib
 tar xvf bfinject.tar
 ```
-* Launch the target app
+
+## Using bfinject
+* Launch the target app into which you will inject your shared library
 * Find your app's PID using `ps`
 * Type `bash bfinject` for help
 * NOTE: it's important to precede the command with `bash` or it won't work. Sandbox yadda yadda.
@@ -37,11 +51,11 @@ Available features:
 ```
 
 ## Decrypt App Store apps
-Here's an example decrypting the app running with PID 802:
+Here's an example decrypting the app running with PID 802 on a LiberiOS-jailbroken device:
 
 ```
 -bash-3.2# pwd
-/var/bfinject
+/jb/bfinject
 -bash-3.2# bash bfinject -p 802 -L decrypt
 [+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/redacted.app/redacted'
 [+] Getting Team ID from target application...
@@ -79,6 +93,20 @@ Here's an example decrypting the app running with PID 802:
 [bfinject] Resuming thread with hijacked regs
 [bfinject] Waiting for thread to hit the infinite loop gadget...
 [bfinject] We hit the infinite loop, call complete. Restoring stack and registers.
+[+] So long and thanks for all the fish.
+```
+
+On Electra devices it will look like this:
+
+```
+Cs-iPhone:~/bf root# bash bfinject -p 263 -L decrypt
+[+] Electra detected.
+[+] Injecting into '/var/containers/Bundle/Application/BCEBDD64-6738-45CE-9B3C-C6F933EA0793/Reddit.app/Reddit'
+[+] Getting Team ID from target application...
+[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
+2018-01-23 22:38:32.888 inject_criticald[330:7227] Address is at 0000000100b14000
+2018-01-23 22:38:32.889 inject_criticald[330:7227] found at: 1806b3134
+2018-01-23 22:38:32.957 inject_criticald[330:7227] No error occured!
 [+] So long and thanks for all the fish.
 ```
 
@@ -121,7 +149,9 @@ cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDom
 ```
 
 ## How does it work?
-At a high level, it side-loads a self-signed .dylib into a running Apple-signed App Store app like this:
+On Electra, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinjector4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. 
+
+At a high level, bfinjector4realz it side-loads a self-signed .dylib into a running Apple-signed App Store app like this:
 
 * Allocate some memory pages in the remote process for a new temporary stack
 * Place the string "/path/to/my.dylib" at known location in stack
@@ -146,7 +176,7 @@ At a high level, it side-loads a self-signed .dylib into a running Apple-signed 
 For a low-level description, see the source.
 
 ## Known issues
-* None
+* None, but people keep finding them.
 
 ## Credits
 * Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)

@@ -69,6 +69,8 @@ fi
 function clean_up {
     rm -rf "$DYLIB_DIR" >/dev/null 2>&1
     rm -f "$RANDOM_NAME"
+    rm -f /bootstrap/usr/local/bin/bfinject4realz
+    rm -f /bootstrap/usr/local/bin/jtool.liberios
 }
 
 #
@@ -100,7 +102,8 @@ if [ -f /bootstrap/inject_criticald ]; then
     cp jtool.liberios /bootstrap/usr/local/bin/
     chmod +x /bootstrap/usr/local/bin/jtool.liberios
     JTOOL=/bootstrap/usr/local/bin/jtool.liberios
-    INJECTOR=/bootstrap/inject_criticald
+    cp bfinject4realz /bootstrap/usr/local/bin/
+    INJECTOR=/bootstrap/usr/local/bin/bfinject4realz
 elif [ -f /jb/usr/local/bin/jtool ]; then
     # This is LiberiOS
     echo "[+] Liberios detected"
@@ -131,7 +134,7 @@ for DYLIB in ${DYLIBS[@]}; do
     #
     # Find the full path to the target app binary
     #
-    BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2 -d\ `
+    BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2- -d\ `
     echo "[+] Injecting into '$BINARY'"
 
     #

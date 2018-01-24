@@ -7,7 +7,7 @@ On Electra jailbreaks, bfinject is basically a wrapper that takes care of correc
 
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
-* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first, because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
+* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')
 mkdir bfinject
@@ -18,7 +18,7 @@ tar xvf bfinject.tar
 
 ## LiberiOS Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with LiberiOS >= 11.0.3
-* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first, because Github enforces SSL, but the LiberiOS version of `wget` doesn't support SSL.
+* Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the LiberiOS version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')
 export PATH=$PATH:/jb/usr/bin:/jb/bin:/jb/sbin:/jb/usr/sbin:/jb/usr/local/bin:

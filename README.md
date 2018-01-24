@@ -149,10 +149,28 @@ cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDom
 ```
 
 ## How does it work?
-On Electra, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. 
+At a high level, `bfinject4realz` side-loads a self-signed .dylib into a running Apple-signed App Store app.
 
-At a high level, bfinject4realz it side-loads a self-signed .dylib into a running Apple-signed App Store app like this:
+On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. 
 
+The process is done in two stages.
+
+### 1. Sign the dylib to be injected
+Codesigning checks on iOS comprise userspace services (amfid) and kernel services (AppleMobileFileIntegrity). Both LiberiOS and Electra patch the userspace amfid process to bypass codesigning checks, but there are still further checks performed by the kernel.
+
+However, Electra and LiberiOS are KPPless, which means they don't patch anything in the kernel; not a single byte. This is because of Kernel Patch Protection ("KPP"), an Apple security technology that does sophisticated kernel introspection to detect and thwart kernel patches. As a result, kernel codesigning checks are still intact.
+
+Fortunately for us, it appears that the kernel assumes amfid has already checked the validity of the cryptographic signature attached to a dylib's entitlements. As a result, all we need to do is self-sign two entitlements into a dylib if we want the kernel to accept it:
+* The first is the `platform-application` entitlement, which I believe indicates that the dylib is Apple software.
+* The second is the Team ID of the signing certificate that was used to sign the code we are injecting into. For example, the Reddit app is signed by Team ID `2TDUX39LX8`. As a result, to inject a dylib into the Reddit app we must sign the dylib with the same Team ID: `2TDUX39LX8`.
+
+bfinject takes care of all the signing shenanigans for you, which is nice.
+
+### 2. Inject the correctly-signed dylib into the target process
+* Using `task_for_pid()`, get a mach port for the target process
+* Use the port to manipulate threads and non-executable memory segments in the target process
+  * Note: without kernel patches, it is not possible to modify executable code in a process.
+  * As a result, we have to use ROP tricks to execute code of our choice.
 * Allocate some memory pages in the remote process for a new temporary stack
 * Place the string "/path/to/my.dylib" at known location in stack
 * Use some tricks to lookup the address of dlopen() in the remote process

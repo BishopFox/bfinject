@@ -3,7 +3,7 @@ Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.1.2. Compatible with El
 
 bfinject loads arbitrary dylibs into running App Store apps. It has built-in support for decrypting App Store apps, and comes bundled with iSpy and Cycript.
 
-On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. Conversely, the version of `jtool` (@morpheus' code-signing multitool) supplied with Electra doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that instead.
+bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. Note that on Electra, the version of `jtool` (@morpheus' code-signing multitool) doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that instead. bfinject does not use Electra's `inject_criticald`.
 
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
@@ -96,20 +96,6 @@ Here's an example decrypting the app running with PID 802 on a LiberiOS-jailbrok
 [+] So long and thanks for all the fish.
 ```
 
-On Electra devices it will look like this:
-
-```
-Cs-iPhone:~/bf root# bash bfinject -p 263 -L decrypt
-[+] Electra detected.
-[+] Injecting into '/var/containers/Bundle/Application/BCEBDD64-6738-45CE-9B3C-C6F933EA0793/Reddit.app/Reddit'
-[+] Getting Team ID from target application...
-[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
-2018-01-23 22:38:32.888 inject_criticald[330:7227] Address is at 0000000100b14000
-2018-01-23 22:38:32.889 inject_criticald[330:7227] found at: 1806b3134
-2018-01-23 22:38:32.957 inject_criticald[330:7227] No error occured!
-[+] So long and thanks for all the fish.
-```
-
 Check the console log for the device, it will tell you where the decrypted IPA is stored. For example:
 
 ```
@@ -150,8 +136,6 @@ cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDom
 
 ## How does it work?
 At a high level, `bfinject4realz` side-loads a self-signed .dylib into a running Apple-signed App Store app.
-
-On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. 
 
 The process is done in two stages.
 

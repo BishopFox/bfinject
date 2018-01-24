@@ -3,12 +3,17 @@
 CYCRIPT_PORT=1337
 
 function help {
-    echo "Syntax: $0 -p PID <-l /path/to/yourdylib  |  -L feature>"
+    echo "Syntax: $0 [-p PID | -P appname] [-l /path/to/yourdylib | -L feature]"
     echo
     echo For example:
     echo "   $0 -p 1234 -L cycript               # Injects Cycript into PID, listening on port $CYCRIPT_PORT"
     echo "     or "
     echo "   $0 -p 4566 -l /path/to/evil.dylib   # Injects the .dylib of your choice"
+    echo "     or"
+    echo "   $0 -P Reddit.app -l /path/to/evil.dylib   # Injects the .dylib of your choice in the Reddit app"
+    echo 
+    echo "Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name."
+    echo "Just enter \"-P identifier\" where \"identifier\" is a strings unique to your app, e.g. \"fing.app\"."
     echo
     echo Available features:
     echo "  cycript    - Inject and run Cycript"
@@ -21,7 +26,7 @@ function help {
 #
 # check args
 #
-if [ "$1" != "-p" ]; then
+if [ "$1" != "-p" ] && [ "$1" != "-P" ]; then
     help
     exit 1
 fi
@@ -33,13 +38,33 @@ fi
 
 declare -a DYLIBS
 
+if [ "$1" == "-p" ]; then
+    PID=$2
+else
+    count=`ps axwww|grep "$2"|grep container|grep '.app'|grep -v grep |wc -l|sed 's/ //g'`
+    if [ "$count" != "1" ]; then  
+        echo "[!] \"$2\" was not uniquely found, please check your criteria."
+        exit 1
+    fi
+    PID=`ps awwwx|grep "$2"|grep container|grep '.app'|grep -v grep|sed 's/^\ *//g'|cut -f1 -d\ `
+    bad=1
+    case "$PID" in
+        ''|*[!0-9]*) bad=1 ;;
+        *) bad=0 ;;
+    esac
+    if [ "$bad" != "0" ]; then
+        echo "[!] Process not found for string \"$3\""
+        exit 1
+    fi
+fi
+
+echo "[+] Attaching to PID $PID"
+
 if [ "$3" == "-l" ]; then
     FEATURE=""
     DYLIBS=("$4")
-    PID=$2
 else
     FEATURE="$4"
-    PID=$2
 
     case "$FEATURE" in
         cycript)
@@ -67,11 +92,15 @@ else
 fi
 
 function clean_up {
-    rm -rf "$DYLIB_DIR" >/dev/null 2>&1
-    rm -f "$RANDOM_NAME"
-    rm -f /bootstrap/usr/local/bin/bfinject4realz
-    rm -f /bootstrap/usr/local/bin/jtool.liberios
+    if [ -d "$DYLIB_DIR" ] && [ "$DYLIB_DIR" != "/System/Library/Frameworks" ]; then
+        rm -rf "$DYLIB_DIR" >/dev/null 2>&1
+    fi
+    rm -f "$RANDOM_NAME" > /dev/null 2>&1
+    rm -f /bootstrap/usr/local/bin/bfinject4realz > /dev/null 2>&1
+    rm -f /bootstrap/usr/local/bin/jtool.liberios > /dev/null 2>&1
 }
+
+
 
 #
 # Entitlements for dylib injection and for our injector binary.

@@ -106,6 +106,12 @@ Check the console log for the device, it will tell you where the decrypted IPA i
 [dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa
 ```
 
+Alternatively, search for it like so:
+
+```
+find /var/mobile/Containers/Data/Application/ -name decrypted-app.ipa
+```
+
 Getting the .ipa off the device can be done with netcat. On your laptop:
 
 ```

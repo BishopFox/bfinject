@@ -3,7 +3,7 @@ Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.1.2. Compatible with El
 
 bfinject loads arbitrary dylibs into running App Store apps. It has built-in support for decrypting App Store apps, and comes bundled with iSpy and Cycript.
 
-On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. Conversely, the version of `jtool` (@morpheus' code-signing multitool) supplied with Electra doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that, instead.
+On Electra jailbreaks, bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `/bootstrap/inject_criticald`. On LiberiOS, there is no equivalent of `inject_criticald`, so bfinject supplies its own injector called `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. Conversely, the version of `jtool` (@morpheus' code-signing multitool) supplied with Electra doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that instead.
 
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7

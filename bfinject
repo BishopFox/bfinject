@@ -159,6 +159,17 @@ for DYLIB in ${DYLIBS[@]}; do
     cp "$DYLIB" "$DYLIB_PATH"
 
     #
+    # Thin the binary so that it's not FAT and contains only an arm64 image
+    echo "[+] Thinning dylib into non-fat arm64 image"
+    $JTOOL -arch arm64 -e arch "$DYLIB_PATH" >/dev/null 2>&1
+    if [ "$?" == "0" ]; then
+        rm -f "$DYLIB_PATH"
+        DYLIB_PATH="${DYLIB_PATH}.arch_arm64"
+    else
+        echo "[!] WARNING: Wasn't able to thin the dylib."
+    fi
+
+    #
     # Sign platform entitlements and Team ID into our dylib
     #
     echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."

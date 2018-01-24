@@ -206,6 +206,7 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
 
   // Copy fake stack buffer over to the new stack frame in the remote process
   kret = vm_write(task, remoteStack, (vm_address_t)localFakeStack, STACK_SIZE);
+  free(localFakeStack);
   
   if(kret != KERN_SUCCESS) {
     printf("[bfinject] Unable to copy fake stack to target process. Error: %s\n", mach_error_string(kret));

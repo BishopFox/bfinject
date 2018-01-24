@@ -31,7 +31,7 @@ $(BINARY_NAME): $(OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 finish:
-	tar cf bfinject.tar bfinject bfinject4realz dylibs/
+	tar cf bfinject.tar jtool.liberios bfinject bfinject4realz dylibs/
 
 %.o: %.mm $(DEPS)
 	$(CXX) -c $(CXXFLAGS) $< -o $@

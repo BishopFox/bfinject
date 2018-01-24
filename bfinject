@@ -119,9 +119,9 @@ for DYLIB in ${DYLIBS[@]}; do
     # This allows is to map the .dylib into the target's process space via dlopen().
     #
     echo "[+] Getting Team ID from target application..."
-    TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
+    TEAMID=`./jtool.liberios --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
     if [ "$TEAMID" == "" ]; then
-        TEAMID=`jtool --sig --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
+        TEAMID=`./jtool.liberios --sig --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
         if [ "$TEAMID" == "" ]; then
             echo "[+] WARNING: No Team ID found. Continuing regardless, but expect weird stuff to happen."
         fi
@@ -137,7 +137,7 @@ for DYLIB in ${DYLIBS[@]}; do
     # Sign the appropriate entitlements and Team ID into our dylib
     #
     echo "[+] Signing injectable .dylib with Team ID $TEAMID and platform entitlements..."
-    jtool --sign platform --ent entitlements.xml --inplace --teamid "$TEAMID" "$DYLIB_PATH" > /dev/null 2>&1
+    ./jtool.liberios --sign platform --ent entitlements.xml --inplace --teamid "$TEAMID" "$DYLIB_PATH" > /dev/null 2>&1
     if [ "$?" != "0" ]; then
         echo jtool dylib signing error. barfing.
         clean_up
@@ -147,7 +147,7 @@ for DYLIB in ${DYLIBS[@]}; do
     #
     # Sign the injector binary with the entitlements
     #
-    jtool --sign platform --ent entitlements.xml --inplace "$RANDOM_NAME" >/dev/null 2>&1
+    ./jtool.liberios --sign platform --ent entitlements.xml --inplace "$RANDOM_NAME" >/dev/null 2>&1
     if [ "$?" != "0" ]; then
         echo jtool "$RANDOM_NAME" signing error. barfing.
         clean_up
@@ -158,7 +158,15 @@ for DYLIB in ${DYLIBS[@]}; do
     # Inject!
     #
     echo "[+] Injecting $DYLIB into target application, PID $PID"
-    ./${RANDOM_NAME} $PID "$DYLIB_PATH"
+    if [ -f /bootstrap/inject_criticald ]; then
+        # This is Electra
+        echo "[+] Electra detected. Using built-in /bootstrap/inject_criticald to inject the dylib"
+        /bootstrap/inject_criticald $PID "$DYLIB_PATH"
+    else
+        # LiberiOS (assumed)
+        echo "[+] LiberiOS assumed. Using Bishop Fox bfinject to inject the dylib"
+        ./${RANDOM_NAME} $PID "$DYLIB_PATH"
+    fi
 
     #
     # Clean up

@@ -40,7 +40,94 @@ static thread_t thread = UNINITIALIZED;
 static vm_address_t remoteStack = UNINITIALIZED;
 static void *gadgetAddress = (void *)UNINITIALIZED;
 
+static void get_task(int pid);
+static char *readmem(uint64_t addr, vm_size_t *len);
+static void *find_gadget(const char *gadget, int gadgetLen);
+static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4);
 
+
+/*
+  Entry point
+*/
+int main(int argc, char ** argv)
+{
+  char argMap[128];
+  char *pathToAppBinary;
+  int pid;
+  uint64_t retval;
+  kern_return_t kret;
+
+  if(argc == 3) {
+    pid = atoi(argv[1]);
+    pathToAppBinary = argv[2];
+  } else {
+    printf("bfinject -=[ https://www.bishopfox.com ]=-\nSyntax: %s <pid> <path/to/dylib>\n", argv[0]);
+    exit(1);
+  }
+
+  printf("[bfinject4realz] Calling task_for_pid() for PID %d.\n", pid);
+  get_task(pid);
+  
+  printf("[bfinject4realz] Calling thread_create() on PID %d\n", pid);
+  if((kret = thread_create(task, &thread)) != KERN_SUCCESS) {
+    printf("[bfinject4realz] ERROR: thread_create() returned %d\n\n", kret);
+    printf("[bfinject4realz] Failed to create thread in remote process. Your jailbreak might be b0rked.\n");
+    exit(1);
+  }
+
+  // Find an infinite loop ROP gadget in the remote process
+  printf("[bfinject4realz] Looking for ROP gadget... ");fflush(stdout);
+  if(!((gadgetAddress = (void *)(uint64_t)find_gadget(ROP_ret, 4)))) {
+    printf("[bfinject4realz] WAT: Infinite loop RET gadget not found :(\n");
+    return 0;
+  }
+  printf("found at 0x%llx\n", (uint64_t)gadgetAddress);
+
+  // Create a new memory section in the remote process. Mark it RW like a stack should be.
+  kret = vm_allocate(task, &remoteStack, STACK_SIZE, VM_FLAGS_ANYWHERE);
+  if (kret != KERN_SUCCESS) {
+    printf("[bfinject4realz] ERROR: Unable to vm_allocate() a new stack in the remote process.\n");
+    printf("[bfinject4realz] The error was: %s\n", mach_error_string(kret));
+    return 0;
+  }
+  kret = vm_protect(task, remoteStack, STACK_SIZE, FALSE, VM_PROT_WRITE|VM_PROT_READ);
+  if(kret != KERN_SUCCESS) {
+    printf("[bfinject4realz] ERROR: Unable to vm_protect(VM_PROT_WRITE|VM_PROT_READ) the new stack.\n");
+    printf("[bfinject4realz] The error was: %s\n", mach_error_string(kret));
+    return 0;
+  }
+  printf("[bfinject4realz] Fake stack frame at %p\n", (void *)remoteStack);
+
+  // Call _pthread_set_self(NULL) to avoid crashing in dlopen() later
+  ropcall(pid, "_pthread_set_self", "libsystem_pthread.dylib", (char *)"u", 0, 0, 0, 0);
+  
+  // Call dlopen() to load the requested shared library
+  snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
+  if((retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)(uint64_t )(RTLD_NOW|RTLD_GLOBAL), 0, 0)) == 0) {
+    // If dlopen() failed, we call dlerror() to see what went wrong
+    printf("[bfinject4realz] ERROR: dlopen() failed to load the dylib.returned 0x%llx (%s)\n", (uint64_t)retval, (retval==0)?"FAILURE":"success!");
+    
+    retval = ropcall(pid, "dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
+    
+    vm_size_t bytesRead;
+    char *buf = readmem(retval, &bytesRead);
+    printf("[bfinject4realz] dlerror() returned: %s\n", buf);
+  } else {
+    printf("[bfinject4realz] Success! Library was loaded at 0x%llx\n", (uint64_t)retval);
+  }
+
+  // Clean up the mess
+  thread_terminate(thread);
+  vm_deallocate(task, remoteStack, STACK_SIZE);
+
+  exit(0);
+}
+
+
+/*
+  find_gadget traverses each of the remote process' pages marked R-X looking for
+  the specified ROP gadget.
+*/
 static void *find_gadget(const char *gadget, int gadgetLen) {
     kern_return_t kr;
     vm_address_t addr;
@@ -57,7 +144,7 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
         break;
       }
       if(kr != KERN_SUCCESS) {
-          printf("[bfinject] ERROR: vm_region_recurse_64 returned !=  KERN_SUCCESS. This only works with App Store apps.\n");
+          printf("[bfinject4realz] ERROR: vm_region_recurse_64 returned !=  KERN_SUCCESS. This only works with App Store apps.\n");
           break;
       }
 
@@ -70,14 +157,15 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
           // allocate local buffer for a copy of the identified memory segment
           char *buf = (char *)malloc((size_t)size);
           if(!buf) {
-            printf("[bfinject] malloc fail\n");
+            printf("[bfinject4realz] ERROR: malloc fail\n");
             break;
           }
           
           // read the remote R-X pages into the local buffer
           kr = vm_read_overwrite(task, address, size, (vm_address_t)buf, &size);
           if(kr != KERN_SUCCESS) {
-            printf("[bfinject] vm_read_overwrite fail\n");
+            printf("[bfinject4realz] ERROR: vm_read_overwrite fail\n");
+            free(buf);
             break;
           }
           
@@ -89,13 +177,12 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
           if(ptr) {
             vm_size_t offset = (vm_size_t)(ptr - buf);
             vm_address_t gadgetAddrReal = address + offset;
-            printf("             gadget candidate: 0x%llx ... ", (uint64_t)gadgetAddrReal);fflush(stdout);
             if(((uint64_t)gadgetAddrReal % 8) == 0) {
-              printf("Found @ 0x%lx\n", gadgetAddrReal);
+              //printf("[bfinject4realz] Found ROP gadget @ 0x%lx\n", gadgetAddrReal);
               return (void *)gadgetAddrReal;
             }
             else {
-              printf("unaligned, skipping\n");
+              // The gadget we found isn't 64-bit aligned, so we can't use it. Keep trying.
             }
           }
         }
@@ -112,33 +199,37 @@ static void get_task(int pid) {
   if(task == UNINITIALIZED) {
     int kret = task_for_pid(mach_task_self(), pid, &task);
     if(kret != KERN_SUCCESS) {
-      printf("[bfinject] task_for_pid() failed with message %s!\n",mach_error_string(kret));
+      printf("[bfinject4realz] ERROR: task_for_pid() failed with message %s!\n",mach_error_string(kret));
+      exit(1);
     }
   }
 }
 
 
-extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
+/*
+  Call any loaded function in the remote process.
+  We use it to call _pthread_set_self(), dlopen() and, if needed, dlerror().
+  Supports up to 4 parameters, but should really use varargs.
+*/
+static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
   kern_return_t kret;
   arm_thread_state64_t state = {0};
   mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
 
   // Find the address of the function to be called in the remote process
-  printf("[bfinject] Looking for '%s' in the target process...\n", symbol);
+  //printf("[bfinject4realz] Looking for '%s' in the target process...\n", symbol);
   uint64_t targetFunctionAddress = lorgnette_lookup_image(task, symbol, symbolLib);  
   if(!targetFunctionAddress) {
-    printf("[bfinject] Could not find a symbol called '%s'\n", symbol);
+    printf("[bfinject4realz] ERROR: Could not find a symbol called '%s'\n", symbol);
     return 0;
   }
-  printf("[bfinject] Desired function '%s' is at %p\n", symbol, (void *)targetFunctionAddress);
   
   // Setup a new registers for the call to target function
-  printf("[bfinject] Setting registers with destination function\n");
+  //printf("[bfinject4realz] Setting CPU registers with function and ROP addresses\n");
   state.__pc = (uint64_t)targetFunctionAddress; // We'll be jumping to here
   state.__lr = (uint64_t)gadgetAddress;         // Address of the infinite loop RET gadget
   state.__sp = (uint64_t)(remoteStack + STACK_SIZE) - (STACK_SIZE / 4);  // Put $sp bang in the middle of the fake stack frame
   state.__fp = state.__sp;
-
 
   // Allocate a STACK_SIZE local buffer that we'll populate before copying it to the remote process
   char *localFakeStack = (char *)malloc((size_t)STACK_SIZE);
@@ -161,7 +252,7 @@ extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
         numDigits = 0;
         while(*argp >= '0' && *argp <= '9') {
           if(++numDigits == 6) {
-            printf("[bfinject] String too long, param=%d\n", param);
+            printf("[bfinject4realz] ERROR: String too long, param=%d\n", param);
             return 0;
           }
           tmpBuf[numDigits-1] = *(argp++);
@@ -195,38 +286,33 @@ extern uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
         break;
 
       default:
-        printf("[bfinject] Uknown argument type: '%c'\n", *argp);
+        printf("[bfinject4realz] ERROR: Uknown argument type: '%c'\n", *argp);
         return 0;
     }
   }
-
-  printf("[bfinject] New CPU state:\n             $pc = 0x%llx\n             $sp = 0x%llx\n             \
-$x0 = 0x%llx\n             $x1 = 0x%llx\n             $x2 = 0x%llx\n             $x3 = 0x%llx\n", 
-state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
 
   // Copy fake stack buffer over to the new stack frame in the remote process
   kret = vm_write(task, remoteStack, (vm_address_t)localFakeStack, STACK_SIZE);
   free(localFakeStack);
   
   if(kret != KERN_SUCCESS) {
-    printf("[bfinject] Unable to copy fake stack to target process. Error: %s\n", mach_error_string(kret));
+    printf("[bfinject4realz] ERROR: Unable to copy fake stack to target process. Error: %s\n", mach_error_string(kret));
     return 0;
   }
   
   // start the remote thread with the fake stack and tweaked registers
-  printf("[bfinject] Resuming thread with hijacked regs\n");
+  printf("[bfinject4realz] Calling %s() at %p...\n", symbol, (void *)targetFunctionAddress);
   thread_set_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, ARM_THREAD_STATE64_COUNT);
   thread_resume(thread);
 
   // Wait for the remote thread to RET to the infinite loop gadget...
-  printf("[bfinject] Waiting for thread to hit the infinite loop gadget...\n");
   while(1) {
     usleep(250000);
     thread_get_state(thread, ARM_THREAD_STATE64, (thread_state_t)&state, &stateCount);
 
     // are we in the infinite loop gadget yet?
     if(state.__pc == (uint64_t)gadgetAddress) {
-      printf("[bfinject] We hit the infinite loop, call complete. Restoring stack and registers.\n");
+      printf("[bfinject4realz] Returned from '%s'\n", symbol);
       
       // dlopen is done and we're stuck in our RET loop. restore the universe.
       thread_suspend(thread);
@@ -241,81 +327,11 @@ state.__pc, state.__sp, state.__x[0], state.__x[1], state.__x[2], state.__x[3]);
 }
 
 
-char *readmem(uint64_t addr, vm_size_t *len) {
+static char *readmem(uint64_t addr, vm_size_t *len) {
   static char buf[16384];
 
   memset(buf, 0, 16384);
   vm_read_overwrite(task, addr, 16383, (vm_address_t)buf, len);
   
   return buf;
-}
-
-
-int main(int argc, char ** argv)
-{
-  char argMap[128];
-  char *pathToAppBinary;
-  int pid;
-  uint64_t retval;
-  kern_return_t kret;
-
-  if(argc == 3) {
-    pid = atoi(argv[1]);
-    pathToAppBinary = argv[2];
-  } else {
-    printf("bfinject -=[ https://www.bishopfox.com ]=-\nSyntax: %s <pid> <path/to/dylib>\n", argv[0]);
-    exit(1);
-  }
-
-  printf("[bfinject] Getting tfp.\n");
-  get_task(pid);
-  
-  printf("[bfinject] Creating new remote thread\n");
-  if((kret = thread_create(task, &thread)) != KERN_SUCCESS) {
-    printf("[bfinject] Failed to create thread in remote process. Is it really an App Store app?\n");
-    printf("[bfinject] thread_create() returned %d\n[bfinject] errno = %d = %s\n", kret, errno, strerror(errno));
-    exit(1);
-  }
-  printf("[bfinject] Thread ID: %u (0x%x)\n", thread, thread);
-
-  // Find an infinite loop ROP gadget in the remote process
-  printf("[bfinject] Looking for RET gadget in the target app...\n");
-  if(!((gadgetAddress = (void *)(uint64_t)find_gadget(ROP_ret, 4)))) {
-    printf("[bfinject] Infinite loop RET gadget not found :(\n");
-    return 0;
-  }
-
-  // Create a new memory section in the remote process. Mark it RW like a stack should be.
-  kret = vm_allocate(task, &remoteStack, STACK_SIZE, VM_FLAGS_ANYWHERE);
-  if (kret != KERN_SUCCESS) {
-    printf("[bfinject] Unable to create a new stack in the remote process. Error: %s\n", mach_error_string(kret));
-    return 0;
-  }
-  kret = vm_protect(task, remoteStack, STACK_SIZE, FALSE, VM_PROT_WRITE|VM_PROT_READ);
-  if(kret != KERN_SUCCESS) {
-    printf("[bfinject] Unable to vm_protect(VM_PROT_WRITE|VM_PROT_READ) the new stack. Error: %s\n", mach_error_string(kret));
-    return 0;
-  }
-  printf("[bfinject] Fake stack frame is %d bytes at %p in remote proc\n", STACK_SIZE, (void *)remoteStack);
-
-  // Call _pthread_set_self(NULL) to avoid crashing in dlopen() later
-  ropcall(pid, "_pthread_set_self", "libsystem_pthread.dylib", (char *)"u", 0, 0, 0, 0);
-  
-  // Call dlopen() to load the requested shared library
-  snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
-  retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)(uint64_t )(RTLD_NOW|RTLD_GLOBAL), 0, 0);
-  printf("[bfinject] dlopen() returned 0x%llx (%s)\n", (uint64_t)retval, (retval==0)?"FAILURE":"success");
-  if(retval == 0) {
-    // Call dlerror() to see what went wrong
-    retval = ropcall(pid, "dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
-    vm_size_t bytesRead;
-    char *buf = readmem(retval, &bytesRead);
-    printf("[bfdecrypt] dlerror() returned: %s\n", buf);
-  }
-
-  // Clean up the mess
-  thread_terminate(thread);
-  vm_deallocate(task, remoteStack, STACK_SIZE);
-
-  exit(0);
 }

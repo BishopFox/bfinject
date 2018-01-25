@@ -23,6 +23,7 @@ function help {
     echo
 }
 
+
 #
 # check args
 #
@@ -35,8 +36,6 @@ if [ "$3" != "-l" -a "$3" != "-L" ]; then
     help
     exit 1
 fi
-
-declare -a DYLIBS
 
 if [ "$1" == "-p" ]; then
     PID=$2
@@ -58,7 +57,7 @@ else
     fi
 fi
 
-echo "[+] Attaching to PID $PID"
+declare -a DYLIBS
 
 if [ "$3" == "-l" ]; then
     FEATURE=""
@@ -91,6 +90,10 @@ else
     esac
 fi
 
+
+#
+# Be a good netizen and tidy up your litter
+#
 function clean_up {
     if [ -d "$DYLIB_DIR" ] && [ "$DYLIB_DIR" != "/System/Library/Frameworks" ]; then
         rm -rf "$DYLIB_DIR" >/dev/null 2>&1
@@ -101,11 +104,11 @@ function clean_up {
 }
 
 
-
 #
 # Entitlements for dylib injection and for our injector binary.
 #
-cat > entitlements.xml << EOF
+if [ ! -f entitlements.xml ]; then
+    cat > entitlements.xml << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -121,6 +124,8 @@ cat > entitlements.xml << EOF
     </dict>
 </plist>
 EOF
+fi
+
 
 #
 # Detect LiberiOS vs Electra
@@ -143,6 +148,10 @@ else
     exit 1
 fi
 
+
+#
+# Do the actual injection into the remote process
+#
 for DYLIB in ${DYLIBS[@]}; do
     if [ ! -f "$DYLIB" ]; then
         echo "$DYLIB" doesn\'t exist
@@ -164,6 +173,11 @@ for DYLIB in ${DYLIBS[@]}; do
     # Find the full path to the target app binary
     #
     BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2- -d\ `
+    if [ "$BINARY" == "COMMAND" ]; then 
+        echo "[!] ERROR: PID $PID not found."
+        clean_up
+        exit 1
+    fi
     echo "[+] Injecting into '$BINARY'"
 
     #

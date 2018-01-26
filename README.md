@@ -5,6 +5,8 @@ bfinject loads arbitrary dylibs into running App Store apps. It has built-in sup
 
 bfinject is a wrapper that takes care of correctly codesigning your dylibs before injecting them using `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. 
 
+**Note**: does not work on Electra if "Tweaks" is enabled. Reboot and re-run Electra without tweaks in order to use bfdecrypt. If you see errors with "thread_create", this is the problem.
+
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
 * Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
@@ -54,6 +56,34 @@ Available features:
   ispy       - Inject iSpy. Browse to http://<DEVICE_IP>:31337/
 ```
 
+## A Simple Test
+Before doing anything more complex, test that it works. bfinject has built-in self tests. Here's an example using the Reddit app as the target:
+
+```
+Cs-iPhone:~ root# bash bfinject -P Reddit -L test
+[+] Electra detected.
+[+] Injecting into '/var/containers/Bundle/Application/55C94FAA-A282-4FDC-967D-6A012D01087E/Reddit.app/Reddit'
+[+] Getting Team ID from target application...
+[+] Thinning dylib into non-fat arm64 image
+[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
+[bfinject4realz] Calling task_for_pid() for PID 486.
+[bfinject4realz] Calling thread_create() on PID 486
+[bfinject4realz] Looking for ROP gadget... found at 0x1019a2ba0
+[bfinject4realz] Fake stack frame at 0x12ac5c000
+[bfinject4realz] Calling _pthread_set_self() at 0x182bfb814...
+[bfinject4realz] Returned from '_pthread_set_self'
+[bfinject4realz] Calling dlopen() at 0x1829bb460...
+[bfinject4realz] Returned from 'dlopen'
+[bfinject4realz] Success! Library was loaded at 0x1c016e1c0
+[+] So long and thanks for all the fish.
+```
+
+On the device screen you should see this:
+
+<img src="https://i.imgur.com/4M9E07S.png" width="400px"/>
+
+If not, something is broken ;)
+
 ## Decrypt App Store apps
 Here's an example decrypting the Reddit app on an Electra-jailbroken iPhone:
 
@@ -76,19 +106,37 @@ Cs-iPhone:~ root# bash bfinject -P Reddit -L decrypt
 [+] So long and thanks for all the fish.
 ```
 
-Check the console log for the device, it will tell you where the decrypted IPA is stored. For example:
+You'll see this screen on your device:
+
+<img src="https://i.imgur.com/z8HkeIB.png" width="400px"/>
+
+Once it's complete, you'll be presented with a UI alert to ask if you want to spawn a service from which you can download your decrypted IPA:
+
+<img src="https://i.imgur.com/cf30n2L.png" width="400px"/>
+
+If you tap `Yes`, a service will be spawned on port 31336 of your device. Connect to it and you'll be sent a raw copy of the IPA that can be downloaded with netcat like so:
+
+```bash
+carl@calisto-3 /tmp $ nc 192.168.1.33 31336 > decrypted.ipa
+carl@calisto-3 /tmp $ ls -l decrypted.ipa
+-rw-r--r--  1 carl  wheel  14649063 Jan 25 16:57 decrypted.ipa
+carl@calisto-3 /tmp $ file decrypted.ipa
+decrypted.ipa: iOS App Zip archive data, at least v2.0 to extract
+```
+
+Alternatively, check the console log for the device, it will tell you where the decrypted IPA is stored. For example:
 
 ```
 [dumpdecrypted] Wrote /var/mobile/Containers/Data/Application/6E6A5887-8B58-4FC5-A2F3-7870EDB5E8D1/Documents/decrypted-app.ipa
 ```
 
-Alternatively, search for it like so:
+You can also search the filesystem for the IPA like so:
 
 ```
 find /var/mobile/Containers/Data/Application/ -name decrypted-app.ipa
 ```
 
-Getting the .ipa off the device can be done with netcat. On your laptop:
+Getting the .ipa off the device can be done with netcat. On your laptop, set up a listener service:
 
 ```
 ncat -l 0.0.0.0 12345 > decrypted.ipa
@@ -103,21 +151,51 @@ cat /path/to/decrypted.ipa > /dev/tcp/<IP_OF_YOUR_COMPUTER>/12345
 The .ipa will be a clone of the original .ipa from the App Store, except that the main binary and all its accompanying frameworks and shared libraries will be decrypted. The CRYPTID flag will be 0 in each previously-encrypted file. You can take the .ipa, extract the app, modify it as needed, re-sign it with your own developer cert, and deploy it onto non-jailbroken devices as needed.
 
 ## Cycript
-One of bfinject's features is to incorporate common pentesting tools, like Cycript. More will be added with time. To use Cycript you will need the Cycript command-line client installed on your MacBook (http://www.cycript.org/). Then, once bfinject is installed on your test device, do this to inject Cycript into your target process:
+One of bfinject's features is to incorporate common pentesting tools, like Cycript. More will be added with time. To use Cycript you will need the Cycript command-line client installed on your MacBook (http://www.cycript.org/). Then, once bfinject is installed on your test device, do something like this example in which we inject Cycript into the Reddit app:
 
 ```
--bash-3.2# bash bfinject -p <PID_OF_APP> -L cycript
-[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/Redacted.app/Redacted'
-...magic happens...
+Cs-iPhone:~ root# bash bfinject -P Reddit -L cycript
+[+] Electra detected.
+[+] Injecting into '/var/containers/Bundle/Application/55C94FAA-A282-4FDC-967D-6A012D01087E/Reddit.app/Reddit'
+[+] Getting Team ID from target application...
+[+] Thinning dylib into non-fat arm64 image
+[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
+[bfinject4realz] Calling task_for_pid() for PID 486.
+[bfinject4realz] Calling thread_create() on PID 486
+[bfinject4realz] Looking for ROP gadget... found at 0x1019a2ba0
+[bfinject4realz] Fake stack frame at 0x10ab00000
+[bfinject4realz] Calling _pthread_set_self() at 0x182bfb814...
+[bfinject4realz] Returned from '_pthread_set_self'
+[bfinject4realz] Calling dlopen() at 0x1829bb460...
+[bfinject4realz] Returned from 'dlopen'
+[bfinject4realz] Success! Library was loaded at 0x1c01786c0
+[+] Injecting into '/var/containers/Bundle/Application/55C94FAA-A282-4FDC-967D-6A012D01087E/Reddit.app/Reddit'
+[+] Getting Team ID from target application...
+[+] Thinning dylib into non-fat arm64 image
+[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
+[bfinject4realz] Calling task_for_pid() for PID 486.
+[bfinject4realz] Calling thread_create() on PID 486
+[bfinject4realz] Looking for ROP gadget... found at 0x1019a2ba0
+[bfinject4realz] Fake stack frame at 0x10ab00000
+[bfinject4realz] Calling _pthread_set_self() at 0x182bfb814...
+[bfinject4realz] Returned from '_pthread_set_self'
+[bfinject4realz] Calling dlopen() at 0x1829bb460...
+[bfinject4realz] Returned from 'dlopen'
+[bfinject4realz] Success! Library was loaded at 0x1c4179680
 [+] So long and thanks for all the fish.
 ```
 
-Once Cycript has been injected, you can connect to it from your MacBook like this:
+Once Cycript has been injected, you'll see the following message on your device:
+
+<img src="https://i.imgur.com/OE8ruPv.png" width="400px"/>
+
+You can connect to Cycript from your MacBook like this:
 
 ```
-carl@calisto ~/bin $ ./cycript -r <IP_OF_YOUR_DEVICE>:1337
-cy# [[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject] path]
-@"/var/mobile/Containers/Data/Application/169C799E-5166-4BF8-AE01-FC9F14684A34/Documents"
+carl@calisto-3 /tmp $ ~/bin/cycript -r 192.168.1.33:1337
+cy# UIApp
+#"<RedditApplication: 0x102304a30>"
+cy#
 ```
 
 ## How does it work?

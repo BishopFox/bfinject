@@ -3,7 +3,7 @@ Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.1.2. Compatible with El
 
 bfinject loads arbitrary dylibs into running App Store apps. It has built-in support for decrypting App Store apps, and comes bundled with iSpy and Cycript.
 
-bfinject is basically a wrapper that takes care of correctly codesigning your dylibs before injecting them using `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. Note that on Electra, the version of `jtool` (@morpheus' code-signing multitool) doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that instead. bfinject does not use Electra's `inject_criticald`.
+bfinject is a wrapper that takes care of correctly codesigning your dylibs before injecting them using `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. 
 
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
@@ -55,48 +55,24 @@ Available features:
 ```
 
 ## Decrypt App Store apps
-Here's an example decrypting the Reddit app on a LiberiOS-jailbroken device:
+Here's an example decrypting the Reddit app on an Electra-jailbroken iPhone:
 
 ```
--bash-3.2# pwd
-/jb/bfinject
--bash-3.2# bash bfinject -P Reddit -L decrypt
-[+] Injecting into '/var/containers/Bundle/Application/DD0F3B57-555E-4DDE-B5B0-95E5BA567C5C/Reddit.app/Reddit'
+Cs-iPhone:~ root# bash bfinject -P Reddit -L decrypt
+[+] Electra detected.
+[+] Injecting into '/var/containers/Bundle/Application/BCEBDD64-6738-45CE-9B3C-C6F933EA0793/Reddit.app/Reddit'
 [+] Getting Team ID from target application...
-[+] Signing injectable .dylib with Team ID REDACTED and platform entitlements...
-[+] Injecting bfdecrypt.dylib into target application, PID 802
-[bfinject] Getting tfp.
-[bfinject] Creating new remote thread
-[bfinject] Thread ID: 3075 (0xc03)
-[bfinject] Looking for RET gadget in the target app...
-             gadget candidate: 0x1006de618 ... Found @ 0x1006de618
-[bfinject] Fake stack frame is 536870912 bytes at 0x10d2f8000 in remote proc
-[bfinject] Looking for '_pthread_set_self' in the target process...
-[bfinject] Desired function '_pthread_set_self' is at 0x184323804
-[bfinject] Setting registers with destination function
-[bfinject] New CPU state:
-             $pc = 0x184323804
-             $sp = 0x1252f8000
-             $x0 = 0x0
-             $x1 = 0x0
-             $x2 = 0x0
-             $x3 = 0x0
-[bfinject] Resuming thread with hijacked regs
-[bfinject] Waiting for thread to hit the infinite loop gadget...
-[bfinject] We hit the infinite loop, call complete. Restoring stack and registers.
-[bfinject] Looking for 'dlopen' in the target process...
-[bfinject] Desired function 'dlopen' is at 0x1840e3460
-[bfinject] Setting registers with destination function
-[bfinject] New CPU state:
-             $pc = 0x1840e3460
-             $sp = 0x1252f8000
-             $x0 = 0x0
-             $x1 = 0x0
-             $x2 = 0x0
-             $x3 = 0x0
-[bfinject] Resuming thread with hijacked regs
-[bfinject] Waiting for thread to hit the infinite loop gadget...
-[bfinject] We hit the infinite loop, call complete. Restoring stack and registers.
+[+] Thinning dylib into non-fat arm64 image
+[+] Signing injectable .dylib with Team ID 2TDUX39LX8 and platform entitlements...
+[bfinject4realz] Calling task_for_pid() for PID 3218.
+[bfinject4realz] Calling thread_create() on PID 3218
+[bfinject4realz] Looking for ROP gadget... found at 0x1016a5110
+[bfinject4realz] Fake stack frame at 0x10a06c000
+[bfinject4realz] Calling _pthread_set_self() at 0x181303814...
+[bfinject4realz] Returned from '_pthread_set_self'
+[bfinject4realz] Calling dlopen() at 0x1810c3460...
+[bfinject4realz] Returned from 'dlopen'
+[bfinject4realz] Success! Library was loaded at 0x1c03e1100
 [+] So long and thanks for all the fish.
 ```
 
@@ -188,7 +164,7 @@ bfinject takes care of all the signing shenanigans for you, which is nice.
 For a low-level description, see the source.
 
 ## Known issues
-* None, but people keep finding them.
+Note that on Electra, the version of `jtool` (@morpheus' code-signing multitool) doesn't support platform binary entitlements, so bfinject supplies `jtool` from LiberiOS and uses that instead. bfinject does not use Electra's `inject_criticald`.
 
 ## Credits
 * Stefan Esser (10n1c) for the original ideas and code behind dumpdecrypted (https://github.com/stefanesser/dumpdecrypted/blob/master/dumpdecrypted.c)

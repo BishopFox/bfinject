@@ -71,7 +71,7 @@ int main(int argc, char ** argv)
   printf("[bfinject4realz] Calling thread_create() on PID %d\n", pid);
   if((kret = thread_create(task, &thread)) != KERN_SUCCESS) {
     printf("[bfinject4realz] ERROR: thread_create() returned %d\n\n", kret);
-    printf("[bfinject4realz] Failed to create thread in remote process. Your jailbreak might be b0rked.\n");
+    printf("[bfinject4realz] Failed to create thread in remote process.\n                 This most likely is caused by \"Tweaks\" being enabled in Electra.\n                 Please try rebooting and re-jailbreaking with \"Tweaks\" disabled.\n");
     exit(1);
   }
 

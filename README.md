@@ -189,7 +189,7 @@ Once Cycript has been injected, you'll see the following message on your device:
 
 <img src="https://i.imgur.com/OE8ruPv.png" width="400px"/>
 
-You can connect to Cycript from your MacBook like this:
+You can connect to Cycript from your MacBook like this (assuming you installed Cycript into ~/bin/):
 
 ```
 carl@calisto-3 /tmp $ ~/bin/cycript -r 192.168.1.33:1337

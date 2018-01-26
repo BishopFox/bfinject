@@ -5,7 +5,9 @@ bfinject loads arbitrary dylibs into running App Store apps. It has built-in sup
 
 bfinject is a wrapper that takes care of correctly codesigning your dylibs before injecting them using `bfinject4realz`. It's completely standalone, doesn't require jailbreakd, QiLin, or anything like that. It just works. 
 
-**Note**: does not work on Electra if "Tweaks" is enabled. Reboot and re-run Electra without tweaks in order to use bfdecrypt. If you see errors with "thread_create", this is the problem.
+**Note**: bfinject does not work on Electra if "Tweaks" is enabled. Reboot and re-run Electra without tweaks in order to use bfinject. If you see errors with "thread_create", this is the problem.
+
+**Note**: bfdecrypt is available as a standalone dylib here: https://github.com/BishopFox/bfdecrypt/
 
 ## Electra Setup
 * Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7

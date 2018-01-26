@@ -109,11 +109,26 @@ int main(int argc, char ** argv)
     
     retval = ropcall(pid, "dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
     
-    vm_size_t bytesRead;
+    vm_size_t bytesRead = 4096;
     char *buf = readmem(retval, &bytesRead);
     printf("[bfinject4realz] dlerror() returned: %s\n", buf);
+    free(buf);
   } else {
     printf("[bfinject4realz] Success! Library was loaded at 0x%llx\n", (uint64_t)retval);
+    /*
+    // if we're decrypting, try to get the path to the saved IPA file as a user convenience
+    uint64_t decryptedIPAPathAddress = lorgnette_lookup_image(task, "decryptedIPAPath", "bfdecrypt.dylib");
+    if(decryptedIPAPathAddress) {
+      uint64_t pathLenAddress = lorgnette_lookup_image(task, "pathLen", "bfdecrypt.dylib");
+      vm_size_t readLen = 8;
+      uint64_t *pathLen = (uint64_t *)readmem(pathLenAddress, &readLen);
+      readLen = (vm_size_t)*pathLen;
+      char *decryptedIPAPath = readmem(decryptedIPAPathAddress, &readLen);
+      printf("[bfinject4realz] In a few seconds the IPA will be saved to '%s'\n", decryptedIPAPath);
+      free(pathLen);
+      free(decryptedIPAPath);
+    }
+    */
   }
 
   // Clean up the mess
@@ -326,12 +341,10 @@ static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
   return (uint64_t)state.__x[0];
 }
 
-
+// Caller must free() the pointer returned by readmem()
 static char *readmem(uint64_t addr, vm_size_t *len) {
-  static char buf[16384];
-
-  memset(buf, 0, 16384);
-  vm_read_overwrite(task, addr, 16383, (vm_address_t)buf, len);
-  
+  char *buf = (char *)malloc((size_t)len);
+  if(buf)
+    vm_read_overwrite(task, addr, *len, (vm_address_t)buf, len);
   return buf;
 }

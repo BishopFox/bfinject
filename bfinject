@@ -237,15 +237,11 @@ for DYLIB in ${DYLIBS[@]}; do
     # Inject!
     #
     "$RANDOM_NAME" "$PID" "$DYLIB_PATH"
-    
-    #
-    # Clean up
-    #
-    clean_up
 done
 
 #
 # EOF
 #
 echo "[+] So long and thanks for all the fish."
+clean_up
 exit 0

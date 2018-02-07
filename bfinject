@@ -187,12 +187,9 @@ for DYLIB in ${DYLIBS[@]}; do
     # This allows is to map the .dylib into the target's process space via dlopen().
     #
     echo "[+] Getting Team ID from target application..."
-    TEAMID=`$JTOOL --sig --ent "$BINARY" 2> /dev/null | grep 'Team ID' | head -n1 |sed 's/ //g'|cut -f2 -d:|cut -f1 -d\(`
+    TEAMID=`$JTOOL --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
     if [ "$TEAMID" == "" ]; then
-        TEAMID=`$JTOOL --sig --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
-        if [ "$TEAMID" == "" ]; then
-            echo "[+] WARNING: No Team ID found. Continuing regardless, but expect weird stuff to happen."
-        fi
+        echo "[+] WARNING: No Team ID found. Continuing regardless, but expect weird stuff to happen."
     fi
 
     #

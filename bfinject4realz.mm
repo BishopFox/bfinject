@@ -39,6 +39,7 @@ static mach_msg_type_number_t threadCount = (mach_msg_type_number_t)UNINITIALIZE
 static thread_t thread = UNINITIALIZED;
 static vm_address_t remoteStack = UNINITIALIZED;
 static void *gadgetAddress = (void *)UNINITIALIZED;
+static uint64_t dlopenAddress = 0;
 
 static void get_task(int pid);
 static char *readmem(uint64_t addr, vm_size_t *len);
@@ -145,67 +146,54 @@ int main(int argc, char ** argv)
 */
 static void *find_gadget(const char *gadget, int gadgetLen) {
     kern_return_t kr;
-    vm_address_t addr;
-    uint32_t depth = 1;
-    vm_address_t address = 0;
     vm_size_t size = 0;
-    struct vm_region_submap_info_64 info;
-    mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    uint64_t targetFunctionAddress = 0;
+    
+    if(dlopenAddress == 0) {
+      dlopenAddress = lorgnette_lookup_image(task, "dlopen", "libdyld.dylib");
+      if(!dlopenAddress) {
+        printf("[bfinject4realz] ERROR: Could not find a symbol called 'dlopen'\n");
+        return 0;
+      }
+    }
+    targetFunctionAddress = dlopenAddress;
+    size = 65536;
 
-    while (1) {
-      kr = vm_region_recurse_64(task, &address, &size, &depth, (vm_region_info_64_t)&info, &count);
-      if(kr == KERN_INVALID_ADDRESS) {
-        // Invalid address means we're done
-        break;
-      }
-      if(kr != KERN_SUCCESS) {
-          printf("[bfinject4realz] ERROR: vm_region_recurse_64 returned !=  KERN_SUCCESS. This only works with App Store apps.\n");
-          break;
-      }
-
-      if (info.is_submap) {
-          depth++;
-      }
-      else {
-        // if the segment is R-X, scan it for the gadget
-        if(info.protection & VM_PROT_READ && info.protection & VM_PROT_EXECUTE) {
-          // allocate local buffer for a copy of the identified memory segment
-          char *buf = (char *)malloc((size_t)size);
-          if(!buf) {
-            printf("[bfinject4realz] ERROR: malloc fail\n");
-            break;
-          }
-          
-          // read the remote R-X pages into the local buffer
-          kr = vm_read_overwrite(task, address, size, (vm_address_t)buf, &size);
-          if(kr != KERN_SUCCESS) {
-            printf("[bfinject4realz] ERROR: vm_read_overwrite fail\n");
-            free(buf);
-            break;
-          }
-          
-          // grep for the gadget
-          char *ptr = (char *)memmem((const void *)buf, (size_t)size, (const void *)gadget, (size_t)gadgetLen);
-          free(buf);
-          
-          // Make sure the gadget is aligned correctly
-          if(ptr) {
-            vm_size_t offset = (vm_size_t)(ptr - buf);
-            vm_address_t gadgetAddrReal = address + offset;
-            if(((uint64_t)gadgetAddrReal % 8) == 0) {
-              //printf("[bfinject4realz] Found ROP gadget @ 0x%lx\n", gadgetAddrReal);
-              return (void *)gadgetAddrReal;
-            }
-            else {
-              // The gadget we found isn't 64-bit aligned, so we can't use it. Keep trying.
-            }
-          }
+    char *buf = (char *)malloc((size_t)size);
+    char *origBuf = buf;
+    if(!buf) {
+      printf("[bfinject4realz] ERROR: malloc fail\n");
+      return NULL;
+    }
+    
+    // read the remote R-X pages into the local buffer
+    kr = vm_read_overwrite(task, targetFunctionAddress, size, (vm_address_t)buf, &size);
+    if(kr != KERN_SUCCESS) {
+      printf("[bfinject4realz] ERROR: vm_read_overwrite fail\n");
+      free(origBuf);
+      return NULL;
+    }
+    
+    // grep for the gadget
+    while(buf < origBuf + size) {
+      char *ptr = (char *)memmem((const void *)buf, (size_t)size - (size_t)(buf - origBuf), (const void *)gadget, (size_t)gadgetLen);
+      
+      // Make sure the gadget is aligned correctly
+      if(ptr) {
+        vm_size_t offset = (vm_size_t)(ptr - origBuf);
+        vm_address_t gadgetAddrReal = targetFunctionAddress + offset;
+        if(((uint64_t)gadgetAddrReal % 8) == 0) {
+          free(origBuf);
+          return (void *)gadgetAddrReal;
+        }
+        else {
+          // The gadget we found isn't 64-bit aligned, so we can't use it. Keep trying.
+          buf = ptr + gadgetLen;
         }
       }
-      address += size;
     }
-
-    return NULL; // gadget not found in an executable text segment
+    free(origBuf);
+    return NULL;
 }
 
 
@@ -230,13 +218,21 @@ static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
   kern_return_t kret;
   arm_thread_state64_t state = {0};
   mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
+  uint64_t targetFunctionAddress = 0;
 
   // Find the address of the function to be called in the remote process
   //printf("[bfinject4realz] Looking for '%s' in the target process...\n", symbol);
-  uint64_t targetFunctionAddress = lorgnette_lookup_image(task, symbol, symbolLib);  
-  if(!targetFunctionAddress) {
-    printf("[bfinject4realz] ERROR: Could not find a symbol called '%s'\n", symbol);
-    return 0;
+  if(strcmp(symbol, "dlopen") == 0) {
+    if(dlopenAddress == 0) {
+      dlopenAddress = lorgnette_lookup_image(task, "dlopen", "libdyld.dylib");
+      if(!dlopenAddress) {
+        printf("[bfinject4realz] ERROR: Could not find a symbol called '%s'\n", symbol);
+        return 0;
+      }
+    }
+    targetFunctionAddress = dlopenAddress;
+  } else {
+    targetFunctionAddress = lorgnette_lookup_image(task, symbol, symbolLib);
   }
   
   // Setup a new registers for the call to target function

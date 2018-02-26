@@ -189,6 +189,10 @@ for DYLIB in ${DYLIBS[@]}; do
     echo "[+] Getting Team ID from target application..."
     TEAMID=`$JTOOL --ent "$BINARY" 2> /dev/null | grep -A1 'com.apple.developer.team-identifier' | tail -n1 |sed 's/ //g'|cut -f2 -d\>|cut -f1 -d\<`
     if [ "$TEAMID" == "" ]; then
+        echo "[+] WARNING: Unable to find Team ID in com.apple.developer.team-identifier. Looking in application-identifier."
+        TEAMID=`$JTOOL --ent "$BINARY" 2> /dev/null | grep -A1 'application-identifier' | tail -n1 | sed 's/ //g'| cut -f2 -d\>| cut -f1 -d\< | cut -f1 -d.`
+    fi
+    if [ "$TEAMID" == "" ]; then
         echo "[+] WARNING: No Team ID found. Continuing regardless, but expect weird stuff to happen."
     fi
 

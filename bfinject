@@ -130,8 +130,17 @@ fi
 #
 # Detect LiberiOS vs Electra
 #
-if [ -f /bootstrap/inject_criticald ]; then
-    # This is Electra
+if [ -f /electra/inject_criticald ]; then
+    # This is Electra >= 1.0.2
+    echo "[+] Electra detected."
+    mkdir -p /electra/usr/local/bin
+    cp jtool.liberios /electra/usr/local/bin/
+    chmod +x /electra/usr/local/bin/jtool.liberios
+    JTOOL=/electra/usr/local/bin/jtool.liberios
+    cp bfinject4realz /electra/usr/local/bin/
+    INJECTOR=/electra/usr/local/bin/bfinject4realz
+elif [ -f /bootstrap/inject_criticald ]; then
+    # This is Electra < 1.0.2
     echo "[+] Electra detected."
     cp jtool.liberios /bootstrap/usr/local/bin/
     chmod +x /bootstrap/usr/local/bin/jtool.liberios

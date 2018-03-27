@@ -11,7 +11,7 @@ function help {
     echo "   $0 -p 1234 -L cycript                     # Inject Cycript into PID"
     echo "     or "
     echo "   $0 -p 4566 -l /path/to/evil.dylib         # Injects the .dylib of your choice into PID"
-    echo 
+    echo
     echo "Instead of specifying the PID with -p, bfinject can search for the correct PID based on the app name."
     echo "Just enter \"-P identifier\" where \"identifier\" is a string unique to your app, e.g. \"fing.app\"."
     echo
@@ -41,7 +41,7 @@ if [ "$1" == "-p" ]; then
     PID=$2
 else
     count=`ps axwww|grep "$2"|grep container|grep '.app'|grep -v grep |wc -l|sed 's/ //g'`
-    if [ "$count" != "1" ]; then  
+    if [ "$count" != "1" ]; then
         echo "[!] \"$2\" was not uniquely found, please check your criteria."
         exit 1
     fi
@@ -69,7 +69,7 @@ else
         cycript)
             DYLIBS=(dylibs/cycript.dylib dylibs/cycript-runner.dylib)
             ;;
-        
+
         decrypt)
             DYLIBS=(dylibs/bfdecrypt.dylib)
             ;;
@@ -99,8 +99,8 @@ function clean_up {
         rm -rf "$DYLIB_DIR" >/dev/null 2>&1
     fi
     rm -f "$RANDOM_NAME" > /dev/null 2>&1
-    rm -f /bootstrap/usr/local/bin/bfinject4realz > /dev/null 2>&1
-    rm -f /bootstrap/usr/local/bin/jtool.liberios > /dev/null 2>&1
+    rm -f /electra/usr/local/bin/bfinject4realz > /dev/null 2>&1
+    rm -f /electra/usr/local/bin/jtool.liberios > /dev/null 2>&1
 }
 
 
@@ -130,8 +130,17 @@ fi
 #
 # Detect LiberiOS vs Electra
 #
-if [ -f /bootstrap/inject_criticald ]; then
-    # This is Electra
+if [ -f /electra/inject_criticald ]; then
+    # This is Electra >= 1.0.2
+    echo "[+] Electra detected."
+    mkdir -p /electra/usr/local/bin
+    cp jtool.liberios /electra/usr/local/bin/
+    chmod +x /electra/usr/local/bin/jtool.liberios
+    JTOOL=/electra/usr/local/bin/jtool.liberios
+    cp bfinject4realz /electra/usr/local/bin/
+    INJECTOR=/electra/usr/local/bin/bfinject4realz
+elif [ -f /bootstrap/inject_criticald ]; then
+    # This is Electra < 1.0.2
     echo "[+] Electra detected."
     cp jtool.liberios /bootstrap/usr/local/bin/
     chmod +x /bootstrap/usr/local/bin/jtool.liberios
@@ -158,10 +167,10 @@ for DYLIB in ${DYLIBS[@]}; do
         clean_up
         exit 1
     fi
-    
+
     # Use random filenames to avoid cached binaries causing "Killed: 9" messages.
-    RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`
-    RANDOM_NAME="${INJECTOR%/*}/`dd if=/dev/random bs=1 count=16 2>/dev/null | md5`"
+    RAND=`dd if=/dev/random bs=1 count=16 2>/dev/null | md5sum`
+    RANDOM_NAME="${INJECTOR%/*}/`dd if=/dev/random bs=1 count=16 2>/dev/null | md5sum`"
     DYLIB_DIR="/System/Library/Frameworks/${RAND}.framework"
     DYLIB_PATH="$DYLIB_DIR/$RAND.dylib"
 
@@ -173,7 +182,7 @@ for DYLIB in ${DYLIBS[@]}; do
     # Find the full path to the target app binary
     #
     BINARY=`ps -o pid,command $PID|tail -n1|sed 's/^\ *//g'|cut -f2- -d\ `
-    if [ "$BINARY" == "COMMAND" ]; then 
+    if [ "$BINARY" == "COMMAND" ]; then
         echo "[!] ERROR: PID $PID not found."
         clean_up
         exit 1

@@ -140,7 +140,7 @@ if [ -f /bootstrap/inject_criticald ]; then
     INJECTOR=/bootstrap/usr/local/bin/bfinject4realz
 
 elif [ -f /electra/inject_criticald ]; then
-    # This is Electra
+    # This is Th0r
     echo "[+] Th0r detected."
     cp jtool.liberios /bin/
     chmod +x /bin/jtool.liberios

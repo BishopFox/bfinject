@@ -25,6 +25,10 @@ bfinject is a wrapper that takes care of correctly codesigning your dylibs befor
 * Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')
+ln -s /electra /bootstrap # (latest Electra path move to /electra)
+mkdir /bootstrap/usr
+mkdir /bootstrap/usr/local
+mkdir /bootstrap/usr/local/bin
 mkdir bfinject
 cd bfinject
 wget http://<your_server>/bfinject.tar

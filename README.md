@@ -21,7 +21,7 @@ bfinject is a wrapper that takes care of correctly codesigning your dylibs befor
 * [Credits](https://github.com/BishopFox/bfinject/blob/master/README.md#credits)
 
 ## Electra Setup
-* Jailbreak your iOS 11.0 - 11.4.1 device with Electra >= b7
+* Jailbreak your iOS 11.0 - 11.4.1 device with Electra >= 1.3.2
 * Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')

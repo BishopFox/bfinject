@@ -1,5 +1,5 @@
 # bfinject
-Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.1.2. Compatible with Electra and LiberiOS jailbreaks.
+Easy dylib injection for jailbroken 64-bit iOS 11.0 - 11.4.1. Compatible with Electra and LiberiOS jailbreaks.
 
 bfinject loads arbitrary dylibs into running App Store apps. It has built-in support for decrypting App Store apps, and comes bundled with iSpy and Cycript.
 
@@ -21,10 +21,14 @@ bfinject is a wrapper that takes care of correctly codesigning your dylibs befor
 * [Credits](https://github.com/BishopFox/bfinject/blob/master/README.md#credits)
 
 ## Electra Setup
-* Jailbreak your iOS 11.0 - 11.1.2 device with Electra >= b7
+* Jailbreak your iOS 11.0 - 11.4.1 device with Electra >= 1.3.2
 * Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the Electra version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')
+ln -s /electra /bootstrap # (latest Electra path move to /electra)
+mkdir /bootstrap/usr
+mkdir /bootstrap/usr/local
+mkdir /bootstrap/usr/local/bin
 mkdir bfinject
 cd bfinject
 wget http://<your_server>/bfinject.tar
@@ -32,7 +36,7 @@ tar xvf bfinject.tar
 ```
 
 ## LiberiOS Setup
-* Jailbreak your iOS 11.0 - 11.1.2 device with LiberiOS >= 11.0.3
+* Jailbreak your iOS 11.0 - 11.4.1 device with LiberiOS >= 11.0.3
 * Copy the bfinject tarball, https://github.com/BishopFox/bfinject/raw/master/bfinject.tar, onto your jailbroken device. You might need to copy it to your laptop first because Github enforces SSL, but the LiberiOS version of `wget` doesn't support SSL.
 ```
 ssh root@your-device-ip # (the password is 'alpine')

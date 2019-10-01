@@ -144,8 +144,12 @@ elif [ -f /jb/usr/local/bin/jtool ]; then
     JTOOL=jtool
     INJECTOR=`pwd`/bfinject4realz
 else
-    echo "[!] Unknown jailbreak. Aborting."
-    exit 1
+    # hacky way of finding unc0ver
+    # just make sure JTOOL is in your path
+    echo "[*] edit line 151 with jtool path if this doesnt work"
+    echo "[*] Unc0ver __detected__: make sure JTOOL is in path"
+    JTOOL=jtool
+    INJECTOR=`pwd`/bfinject4realz
 fi
 
 

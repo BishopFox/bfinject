@@ -26,6 +26,8 @@
 #include <mach/exc.h>
 #include <errno.h> 
 #include <stdlib.h> 
+#include <mach-o/dyld_images.h>
+#include <mach-o/dyld.h>
 
 #define STACK_SIZE ((1024 * 1024) * 512) // 512MB stack
 #define ROP_ret "\xc0\x03\x5f\xd6"
@@ -44,7 +46,10 @@ static uint64_t dlopenAddress = 0;
 static void get_task(int pid);
 static char *readmem(uint64_t addr, vm_size_t *len);
 static void *find_gadget(const char *gadget, int gadgetLen);
-static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4);
+static uint64_t ropcall_by_symboll(const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4);
+static uint64_t ropcall_by_address(uint64_t address,  const char *symbol, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4);
+vm_address_t find_mem(vm_address_t startAddress, vm_size_t lenToSearch, const char *sequence, int seqLen);
+vm_address_t find_opcode(vm_address_t startAddress, vm_size_t lenToSearch, uint32_t opcodeMask, uint32_t opcodeMaskValue);
 
 
 /*
@@ -99,16 +104,54 @@ int main(int argc, char ** argv)
   }
   printf("[bfinject4realz] Fake stack frame at %p\n", (void *)remoteStack);
 
+  // Get dyld version. We have the same dyld as the target
+  uint64_t dyld_version = NSVersionOfRunTimeLibrary("libdyld.dylib");
+
   // Call _pthread_set_self(NULL) to avoid crashing in dlopen() later
-  ropcall(pid, "_pthread_set_self", "libsystem_pthread.dylib", (char *)"u", 0, 0, 0, 0);
-  
+  // Handle new dyld versions differently, becuase their exported function won't get NULL as an argument
+  if (dyld_version >= 0x2d70000) {
+    // Get dyld address in remote task
+    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+    struct task_dyld_info info;
+    kern_return_t ret = task_info(task, TASK_DYLD_INFO, (task_info_t) &info, &count);
+    if (ret) {
+        printf("task_info returned %d. Aborting\n", ret);
+        return 1;
+    }
+
+    vm_size_t size_to_read = sizeof(dyld_all_image_infos);
+    struct dyld_all_image_infos *all_image_infos_local = (struct dyld_all_image_infos *)readmem(info.all_image_info_addr, &size_to_read);
+    vm_address_t dyld_address = (vm_address_t)all_image_infos_local->dyldImageLoadAddress;
+    free(all_image_infos_local);
+
+    // Find _pthread_set_self_dyld function by a unique byte sequence it has
+    const char *pthread_set_self_bytes = "\x00\x01\x67\x9e\x09\xb1\x02\x91\x20\x1d\x18\x4e\x00\x39\x80\x3d";
+    vm_address_t bytes_address = find_mem(dyld_address, 0x100000, pthread_set_self_bytes, 16);
+    if (!bytes_address) {
+      printf("Cant find _pthread_set_self_dyld function. Aborting\n");
+      return 1;
+    }
+    
+    // Find the beginning of the function, by searching the STP opcode
+    vm_address_t _pthread_set_self_address = find_opcode(bytes_address, 0x100, 0xffc00000, 0xa9800000);
+    if (!_pthread_set_self_address) {
+      printf("Cant find _pthread_set_self_dyld function. Aborting..\n");
+      return 1;
+    }
+
+    ropcall_by_address(_pthread_set_self_address, "_pthread_set_self_dyld", "", 0, 0, 0, 0);
+  } else {
+    // Old dyld
+    ropcall_by_symboll("_pthread_set_self", "libsystem_pthread.dylib", (char *)"u", 0, 0, 0, 0);
+  }
+
   // Call dlopen() to load the requested shared library
   snprintf(argMap, 127, "s%luu", strlen(pathToAppBinary));
-  if((retval = ropcall(pid, "dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)(uint64_t )(RTLD_NOW|RTLD_GLOBAL), 0, 0)) == 0) {
+  if((retval = ropcall_by_symboll("dlopen", "libdyld.dylib", argMap, (uint64_t *)pathToAppBinary, (uint64_t *)(uint64_t )(RTLD_NOW|RTLD_GLOBAL), 0, 0)) == 0) {
     // If dlopen() failed, we call dlerror() to see what went wrong
     printf("[bfinject4realz] ERROR: dlopen() failed to load the dylib.returned 0x%llx (%s)\n", (uint64_t)retval, (retval==0)?"FAILURE":"success!");
     
-    retval = ropcall(pid, "dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
+    retval = ropcall_by_symboll("dlerror", "libdyld.dylib", "", 0, 0, 0, 0);
     
     vm_size_t bytesRead = 4096;
     char *buf = readmem(retval, &bytesRead);
@@ -147,7 +190,7 @@ int main(int argc, char ** argv)
 static void *find_gadget(const char *gadget, int gadgetLen) {
     kern_return_t kr;
     vm_size_t size = 0;
-    uint64_t targetFunctionAddress = 0;
+    uint64_t targetAddress = 0;
     
     if(dlopenAddress == 0) {
       dlopenAddress = lorgnette_lookup_image(task, "dlopen", "libdyld.dylib");
@@ -156,44 +199,86 @@ static void *find_gadget(const char *gadget, int gadgetLen) {
         return 0;
       }
     }
-    targetFunctionAddress = dlopenAddress;
+    targetAddress = dlopenAddress;
     size = 65536;
 
-    char *buf = (char *)malloc((size_t)size);
-    char *origBuf = buf;
-    if(!buf) {
-      printf("[bfinject4realz] ERROR: malloc fail\n");
-      return NULL;
-    }
-    
-    // read the remote R-X pages into the local buffer
-    kr = vm_read_overwrite(task, targetFunctionAddress, size, (vm_address_t)buf, &size);
-    if(kr != KERN_SUCCESS) {
-      printf("[bfinject4realz] ERROR: vm_read_overwrite fail\n");
-      free(origBuf);
-      return NULL;
-    }
-    
-    // grep for the gadget
-    while(buf < origBuf + size) {
-      char *ptr = (char *)memmem((const void *)buf, (size_t)size - (size_t)(buf - origBuf), (const void *)gadget, (size_t)gadgetLen);
-      
-      // Make sure the gadget is aligned correctly
-      if(ptr) {
-        vm_size_t offset = (vm_size_t)(ptr - origBuf);
-        vm_address_t gadgetAddrReal = targetFunctionAddress + offset;
-        if(((uint64_t)gadgetAddrReal % 8) == 0) {
-          free(origBuf);
-          return (void *)gadgetAddrReal;
-        }
-        else {
-          // The gadget we found isn't 64-bit aligned, so we can't use it. Keep trying.
-          buf = ptr + gadgetLen;
-        }
+    int offset = 0;
+    while (size > 0) {
+      vm_address_t gadgetAddr = find_mem(targetAddress + offset, size, gadget, gadgetLen);
+      if (((uint64_t)gadgetAddr % 8) == 0) {
+        return (void *)gadgetAddr;
+      } else {
+        // The gadget we found isn't 64-bit aligned, so we can't use it. Keep trying.        
+        offset = gadgetAddr - targetAddress;
+        offset += gadgetLen;
+        size -= offset;
       }
     }
-    free(origBuf);
+
     return NULL;
+}
+
+/*
+  find_mem searches for a sequence of bytes in a specified memory area
+*/
+vm_address_t find_mem(vm_address_t startAddress, vm_size_t lenToSearch, const char *sequence, int seqLen)
+{
+  vm_size_t size = lenToSearch;
+  const char *buf = readmem(startAddress, &size);
+  if (!buf || (size != lenToSearch)) {
+    printf("[bfinject4realz] ERROR: Can't read %lu bytes from address %p\n", lenToSearch, buf);
+    if (buf) {
+      free((void*)buf);
+    }
+    return 0;
+  }
+
+  char *seqInBuf = (char *)memmem((const void *)buf, size, (const void *)sequence, (size_t)seqLen);
+  if (!seqInBuf) {
+    printf("[bfinject4realz] ERROR: Can't find bytes in memory\n");
+    free((void*)buf);
+    return 0;
+  }
+  vm_size_t offset = (vm_size_t)(seqInBuf - buf);
+  free((void*)buf);
+
+  return (vm_address_t)startAddress + offset;
+}
+
+
+/*
+  Search backwards from the given address, and find the requested opcode
+*/
+vm_address_t find_opcode(vm_address_t startAddress, vm_size_t lenToSearch, uint32_t opcodeMask, uint32_t opcodeMaskValue)
+{
+  vm_size_t size = lenToSearch;
+  
+  // Align the searching len to opcode size
+  if (lenToSearch % 4 != 0) {
+    lenToSearch &= ~3;
+  }
+
+  // Read the bytes before the requested address
+  const char *buf = readmem(startAddress - size, &size);
+  if (!buf || (size != lenToSearch)) {
+    printf("[bfinject4realz] ERROR: Can't read %lu bytes from address %p\n", lenToSearch, buf);
+    if (buf) {
+      free((void*)buf);
+    }
+    return 0;
+  }
+
+  // Search backwards for the opcode
+  for (unsigned long i = 4; i <= lenToSearch; i += 4) {
+    uint32_t opcode = *(uint32_t*)(&buf[size - i]);
+    if ((opcode & opcodeMask) == opcodeMaskValue) {
+      free((void*)buf);
+      return startAddress - i;
+    }
+  }
+  
+  free((void*)buf);
+  return 0;
 }
 
 
@@ -214,10 +299,7 @@ static void get_task(int pid) {
   We use it to call _pthread_set_self(), dlopen() and, if needed, dlerror().
   Supports up to 4 parameters, but should really use varargs.
 */
-static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
-  kern_return_t kret;
-  arm_thread_state64_t state = {0};
-  mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
+static uint64_t ropcall_by_symboll(const char *symbol, const char *symbolLib, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
   uint64_t targetFunctionAddress = 0;
 
   // Find the address of the function to be called in the remote process
@@ -234,7 +316,20 @@ static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
   } else {
     targetFunctionAddress = lorgnette_lookup_image(task, symbol, symbolLib);
   }
-  
+
+  return ropcall_by_address(targetFunctionAddress, symbol, argMap, arg1, arg2, arg3, arg4);
+}
+
+/*
+  Called by ropcall_by_symboll. 
+  Used also when we call a function using it's address directly instead of it's symbol.
+*/
+static uint64_t ropcall_by_address(uint64_t targetFunctionAddress, const char *symbol, const char *argMap, uint64_t *arg1, uint64_t *arg2, uint64_t *arg3, uint64_t *arg4) {
+
+  kern_return_t kret;
+  arm_thread_state64_t state = {0};
+  mach_msg_type_number_t stateCount = ARM_THREAD_STATE64_COUNT;
+
   // Setup a new registers for the call to target function
   //printf("[bfinject4realz] Setting CPU registers with function and ROP addresses\n");
   state.__pc = (uint64_t)targetFunctionAddress; // We'll be jumping to here
@@ -339,7 +434,7 @@ static uint64_t ropcall(int pid, const char *symbol, const char *symbolLib, cons
 
 // Caller must free() the pointer returned by readmem()
 static char *readmem(uint64_t addr, vm_size_t *len) {
-  char *buf = (char *)malloc((size_t)len);
+  char *buf = (char *)malloc((size_t)*len);
   if(buf)
     vm_read_overwrite(task, addr, *len, (vm_address_t)buf, len);
   return buf;

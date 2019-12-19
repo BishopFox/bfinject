@@ -177,7 +177,7 @@ int _image_headers_from_dyld_info64(task_t target,
 	int err = KERN_FAILURE;
 	struct dyld_all_image_infos_64 infos;
 	vm_size_t size = dyld_info.all_image_info_size;
-	err = vm_read_overwrite(target, dyld_info.all_image_info_addr, size,
+	err = vm_read_overwrite(target, dyld_info.all_image_info_addr, sizeof(infos),
 								 (vm_address_t)&infos, &size);
 	////RDFailOnError("vm_read_overwrite()", fail);
 
